@@ -241,7 +241,8 @@ export default function MoodSculpture({ mood = null, className = '' }: MoodSculp
       const resize = () => {
         if (disposed || !renderer) return;
         const width = Math.max(1, host.clientWidth); const height = Math.max(1, host.clientHeight);
-        const aspect = width / height; const halfHeight = Math.max(1.23, 1.3 / aspect) * SETTINGS.viewPadding;
+        // 短屏优先用满纵向空间；窄屏仍为向外挥动的小手保留横向边界。
+        const aspect = width / height; const halfHeight = Math.max(1.13, 1.28 / aspect) * SETTINGS.viewPadding;
         camera.left = -halfHeight * aspect; camera.right = halfHeight * aspect; camera.top = halfHeight; camera.bottom = -halfHeight; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); draw();
       };
       controllerRef.current = {

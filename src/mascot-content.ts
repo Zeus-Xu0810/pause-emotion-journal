@@ -5,7 +5,7 @@ export const MASCOT_SETTINGS = {
   maximumTapTravel: 10,
   maximumTapDurationMs: 650,
   maxPixelRatio: 1.5,
-  viewPadding: 1.1,
+  viewPadding: 1.05,
   floatAmplitude: 0.025,
   floatFrequency: 0.8,
   pointerRotation: { x: 0.09, y: 0.16 },
