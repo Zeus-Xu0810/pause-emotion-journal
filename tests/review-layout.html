@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>日记与回顾数据态验收</title>
+    <style>
+      /* 本页只添加验收导航与日志，业务组件完全使用生产圆体和页面样式。 */
+      .review-fixture-header { max-width: 1120px; margin: 22px auto 18px; padding: 0 32px; }
+      .review-fixture-header h1 { margin: 0 0 8px; font-size: 24px; }
+      .review-fixture-header p { margin: 6px 0; color: #667b72; font-size: 13px; line-height: 1.8; overflow-wrap: anywhere; }
+      .review-fixture-nav { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; margin-bottom: 13px; }
+      .review-fixture-nav a { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 9px 17px; border: 1px solid #d5e2d9; border-radius: 24px; background: transparent; color: #667b72; font-size: 16px; text-decoration: none; }
+      .review-fixture-nav a.is-active { background: #e3eee7; color: #233d35; }
+      .review-fixture-route { margin: 0 0 15px; color: #667b72; font: 13px/1.7 ui-monospace, monospace; overflow-wrap: anywhere; }
+      #review-action-log { color: #32664a; }
+      .review-fixture-page .subpage-heading { margin-top: 22px; }
+      @media (max-width: 640px) { .review-fixture-header { padding-inline: 19px; } }
+    </style>
+  </head>
+  <body>
+    <header class="review-fixture-header">
+      <h1>日记与回顾数据态验收</h1>
+      <p>只有本地示例数据。可检查月历、筛选、折叠、趋势圆点和情境回看；编辑、删除和新建只写入下方日志，不更改记录。</p>
+      <p id="review-action-log" role="status" aria-live="polite">尚未操作</p>
+    </header>
+    <div id="review-mount"></div>
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { MemoryRouter, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+      import JournalView from '../src/views/JournalView.tsx';
+      import InsightsView from '../src/views/InsightsView.tsx';
+      import { sampleEntries } from '../src/lib/domain.ts';
+      import '../src/styles.css';
+
+      /** 验收输入集中配置：旧记录专门检查日期跳转和回顾时间范围隔离。 */
+      const FIXTURE = {
+        oldDate: '2026-01-15',
+        oldNote: '这是一条一月的旧记录，用来检查进入旧日期后，月历是否也定位到一月。',
+        longNote: '这是一条较长的本地示例记录，用来检查两行预览与展开后的阅读效果。\n今天先把事情放慢一点，记下生活里的一个普通片刻。这里的文字不属于任何真实用户，也不会同步或上传。',
+      };
+      const now = new Date();
+      const oldStamp = new Date(`${FIXTURE.oldDate}T12:00:00`).toISOString();
+      const entries = sampleEntries(now).map((entry, index) => index === 11 ? { ...entry, note: FIXTURE.longNote } : entry);
+      entries.push({ id: 'fixture-old-january', mood: 2, feelings: ['疲惫'], contexts: ['工作', '日常小事'], note: FIXTURE.oldNote, occurredAt: oldStamp, createdAt: oldStamp, updatedAt: oldStamp, revision: 1 });
+      const sessions = ['better', 'same', 'unsuitable'].map((feedback, index) => ({ id: `fixture-care-${index}`, type: ['breathing', 'music', 'movement'][index], title: ['呼吸', '声音', '活动'][index], durationSeconds: 60 + index * 30, beforeMood: 3, feedback, entryId: null, createdAt: new Date(now.getTime() - (index + 1) * 3600000).toISOString() }));
+      const actions = [];
+      const record = (kind, entry) => {
+        const item = { kind, id: entry?.id ?? null, occurredAt: entry?.occurredAt ?? null };
+        actions.push(item);
+        document.getElementById('review-action-log').textContent = `第 ${actions.length} 次操作：${kind}${entry ? ' · ' + entry.id + ' · ' + entry.occurredAt.slice(0, 10) : ''}`;
+      };
+
+      /** 外部查询参数只交给日记过滤器，MemoryRouter内的回看保持真实路由行为。 */
+      const search = new URLSearchParams(location.search);
+      const filters = new URLSearchParams();
+      for (const key of ['date', 'mood', 'context', 'from', 'to']) if (search.has(key)) filters.set(key, search.get(key));
+      const initialRoute = search.get('view') === 'insights' ? '/insights' : `/journal${filters.size ? '?' + filters : ''}`;
+      const linkClass = ({ isActive }) => isActive ? 'is-active' : '';
+      function ReviewFixture() {
+        const route = useLocation();
+        return React.createElement('main', { className: 'main-shell review-fixture-page' },
+          React.createElement('nav', { className: 'review-fixture-nav', 'aria-label': '验收页面' },
+            React.createElement(NavLink, { to: '/journal', className: linkClass }, '日记'),
+            React.createElement(NavLink, { to: '/insights', className: linkClass }, '回顾'),
+            React.createElement(NavLink, { to: `/journal?date=${FIXTURE.oldDate}` }, '一月旧记录')),
+          React.createElement('p', { className: 'review-fixture-route', id: 'review-location', 'aria-live': 'polite' }, route.pathname + route.search),
+          React.createElement('div', { className: 'subpage-heading' }, React.createElement('h1', { className: 'subpage-title' }, route.pathname === '/insights' ? '情绪轨迹' : '我的片刻')),
+          React.createElement(Routes, null,
+            React.createElement(Route, { path: '/journal', element: React.createElement(JournalView, { entries, onEdit: entry => record('编辑', entry), onDelete: entry => record('删除', entry), onCreate: () => record('新建') }) }),
+            React.createElement(Route, { path: '/insights', element: React.createElement(InsightsView, { entries, sessions }) }),
+            React.createElement(Route, { path: '*', element: React.createElement(Navigate, { to: '/journal', replace: true }) })));
+      }
+      // 调试出口只包含本地示例和假操作日志，不导入Firebase或任何账号服务。
+      window.reviewFixture = { entries, sessions, actions };
+      createRoot(document.getElementById('review-mount')).render(React.createElement(MemoryRouter, { initialEntries: [initialRoute] }, React.createElement(ReviewFixture)));
+    </script>
+  </body>
+</html>
