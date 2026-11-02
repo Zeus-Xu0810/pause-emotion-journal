@@ -3,46 +3,57 @@ import type { AuthSession } from './firebase';
 import { friendlyCloudError } from './firebase';
 import * as repository from './repository';
 import { requireSaveOwner } from './save-policy';
+import { deriveJournalState, finishJournalRequest, startJournalRequest, type JournalReadState, type JournalRequests } from './journal-sync';
 import type { CareSession, EntryDraft, MoodEntry } from '../types';
 
-type SyncState = 'idle' | 'saving' | 'synced' | 'error';
-interface JournalData { epoch: number; entries: MoodEntry[]; sessions: CareSession[]; entriesReady: boolean; sessionsReady: boolean; failed: boolean }
-const emptyData = (epoch: number): JournalData => ({ epoch, entries: [], sessions: [], entriesReady: false, sessionsReady: false, failed: false });
+interface JournalData extends JournalReadState { entries: MoodEntry[]; sessions: CareSession[] }
+const emptyData = (epoch: number): JournalData => ({ epoch, entries: [], sessions: [], entriesReady: false, sessionsReady: false, failed: false, entriesSynced: false, sessionsSynced: false });
 
 /** 仅管理本人云记录；未登录只允许编辑草稿和体验活动，不能创建“访客已保存”记录。 */
 export function useJournal(session: AuthSession, onNotice: (message: string) => void) {
   const uid = session.user?.uid ?? null;
-  const cloud = Boolean(uid && session.user?.emailVerified);
+  const cloud = Boolean(session.ready && uid && session.user?.emailVerified);
   const key = `${uid ?? 'guest'}:${session.user?.emailVerified ? 1 : 0}:${session.ready ? 1 : 0}`;
-  const ownership = useRef({ key, epoch: 0 });
+  const ownership = useRef({ key, user: session.user, epoch: 0 });
   // 渲染时就隔离旧身份，不能等待订阅清理后再隐藏前一人的数据。
-  if (ownership.current.key !== key) ownership.current = { key, epoch: ownership.current.epoch + 1 };
+  if (ownership.current.key !== key || ownership.current.user !== session.user) ownership.current = { key, user: session.user, epoch: ownership.current.epoch + 1 };
   const epoch = ownership.current.epoch;
   const [reconnect, setReconnect] = useState(0);
   const [data, setData] = useState<JournalData>(() => emptyData(epoch));
-  const [status, setStatus] = useState<{ epoch: number; value: SyncState }>({ epoch, value: 'idle' });
-  const requests = useRef({ epoch, count: 0 });
+  const requests = useRef<JournalRequests>({ epoch, count: 0, batchFailed: false });
+  const [writes, setWrites] = useState(requests.current);
+  // 只有身份变化才能废弃写入桶，同身份读取重连保留所有待确认请求。
+  if (requests.current.epoch !== epoch) requests.current = { epoch, count: 0, batchFailed: false };
   const current = () => ownership.current.epoch === epoch;
-  const publish = (value: SyncState) => { if (current()) setStatus({ epoch, value }); };
 
   useEffect(() => {
     let active = true; let reported = false;
     let stopEntries = () => {}; let stopSessions = () => {};
-    requests.current = { epoch, count: 0 };
-    setData(emptyData(epoch)); setStatus({ epoch, value: 'idle' });
+    setData(emptyData(epoch));
     if (!cloud || !uid) return;
     const valid = () => active && ownership.current.epoch === epoch;
-    const failed = (error: Error) => { if (valid()) { setData(previous => previous.epoch === epoch ? { ...previous, failed: true } : previous); setStatus({ epoch, value: 'error' }); if (!reported) onNotice(friendlyCloudError(error)); reported = true; } };
+    const update = (change: (previous: JournalData) => JournalData) => {
+      if (valid()) setData(previous => valid() && previous.epoch === epoch ? change(previous) : previous);
+    };
+    // 终止读取错误保留到主动重连；另一条订阅的成功或写入成功不能覆盖它。
+    const failed = (error: Error) => { if (valid()) { update(previous => ({ ...previous, failed: true })); if (!reported) onNotice(friendlyCloudError(error)); reported = true; } };
     try {
       stopEntries = repository.subscribeEntries(uid, entries => {
-        if (valid()) setData(previous => previous.epoch === epoch ? { ...previous, entries, entriesReady: true } : previous);
+        update(previous => ({ ...previous, entries }));
       }, failed, fromCache => {
-        if (valid() && !(requests.current.epoch === epoch && requests.current.count > 0)) { setStatus({ epoch, value: fromCache ? 'idle' : 'synced' }); if (!fromCache) reported = false; }
+        // 首次须服务器确认，之后离线只改变连接状态，不收回已可查看的数据。
+        update(previous => ({ ...previous, entriesReady: previous.entriesReady || !fromCache, entriesSynced: !fromCache }));
       });
       stopSessions = repository.subscribeCareSessions(uid, sessions => {
-        if (valid()) setData(previous => previous.epoch === epoch ? { ...previous, sessions, sessionsReady: true } : previous);
-      }, failed);
-    } catch (error) { failed(error instanceof Error ? error : new Error('暂时无法连接个人记录。')); }
+        update(previous => ({ ...previous, sessions }));
+      }, failed, fromCache => {
+        update(previous => ({ ...previous, sessionsReady: previous.sessionsReady || !fromCache, sessionsSynced: !fromCache }));
+      });
+    } catch (error) {
+      failed(error instanceof Error ? error : new Error('暂时无法连接个人记录。'));
+      // 第二条订阅初始化失败时，也立即释放已创建的第一条订阅。
+      stopEntries(); stopSessions(); stopEntries = () => {}; stopSessions = () => {};
+    }
     return () => { active = false; stopEntries(); stopSessions(); };
   }, [uid, cloud, epoch, reconnect, onNotice]);
 
@@ -50,27 +61,26 @@ export function useJournal(session: AuthSession, onNotice: (message: string) => 
   async function mutate<T>(operation: (owner: string) => Promise<T>): Promise<T> {
     if (!current()) throw new Error('账号已变化，请在当前账号中重新操作。');
     const owner = requireSaveOwner(session);
-    if (requests.current.epoch !== epoch) requests.current = { epoch, count: 0 };
-    requests.current.count += 1; publish('saving');
+    requests.current = startJournalRequest(requests.current, epoch); setWrites(requests.current);
+    let failed = true;
     try {
       const result = await operation(owner);
-      if (current()) { requests.current.count = Math.max(0, requests.current.count - 1); publish(requests.current.count ? 'saving' : 'synced'); }
+      failed = false;
       return result;
-    } catch (error) {
-      if (current()) { requests.current.count = Math.max(0, requests.current.count - 1); publish('error'); }
-      throw error;
+    } finally {
+      if (current()) { requests.current = finishJournalRequest(requests.current, epoch, failed); setWrites(requests.current); }
     }
   }
   const save = (draft: EntryDraft, editing: MoodEntry | null) => mutate(owner => editing ? repository.updateEntry(owner, editing, draft) : repository.createEntry(owner, draft));
   const remove = (entry: MoodEntry) => mutate(owner => repository.deleteEntry(owner, entry));
   const saveCare = (care: CareSession) => mutate(owner => repository.saveCareSession(owner, care));
   const visible = cloud && data.epoch === epoch;
+  const status = deriveJournalState(epoch, cloud, data, writes);
   return {
     entries: visible ? data.entries : [], sessions: visible ? data.sessions : [], cloud,
-    // 读取失败与真实空列表分开呈现；重连只重建订阅，不刷新页面或清除草稿。
-    loadFailed: cloud && visible && data.failed && (!data.entriesReady || !data.sessionsReady),
-    loading: cloud && !data.failed && (!visible || !data.entriesReady || !data.sessionsReady),
+    // 已加载后的终止错误同样需要重连入口；重连不刷新页面或清除编辑草稿。
+    loadFailed: status.loadFailed, loading: status.loading,
     retry: () => setReconnect(value => value + 1),
-    sync: status.epoch === epoch ? status.value : 'idle', save, remove, saveCare,
+    sync: status.sync, save, remove, saveCare,
   };
 }

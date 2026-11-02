@@ -42,10 +42,12 @@ export function subscribeEntries(uid: string, onData: (entries: MoodEntry[]) => 
     onServerState?.(snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites);
   }, onError);
 }
-export function subscribeCareSessions(uid: string, onData: (sessions: CareSession[]) => void, onError: (error: Error) => void): () => void {
+export function subscribeCareSessions(uid: string, onData: (sessions: CareSession[]) => void, onError: (error: Error) => void, onServerState?: (fromCache: boolean) => void): () => void {
   const db = privateDatabase(uid);
   return onSnapshot(query(collection(db, 'users', uid, 'careSessions'), orderBy('createdAt', 'desc')), { includeMetadataChanges: true }, (snapshot) => {
     if (!snapshot.metadata.hasPendingWrites) onData(snapshot.docs.map((item) => ({ ...item.data(), id: item.id, createdAt: toIso(item.data().createdAt) } as CareSession)));
+    // 与日记一致：首次缓存快照不能冒充已读取个人云记录。
+    onServerState?.(snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites);
   }, onError);
 }
 
