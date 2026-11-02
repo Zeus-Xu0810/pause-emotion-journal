@@ -34,7 +34,7 @@ WebGL 不可用时切换为同样可互动的 CSS 团子；减少动态模式保
 
 使用 Firebase Authentication 与 Standard Cloud Firestore。数据按 `users/{uid}/entries` 与 `users/{uid}/careSessions` 隔离，只有已验证邮箱的本人可访问。修改使用版本事务处理冲突。网站默认会话登录与内存缓存，退出清空画面，私人正文不写入浏览器持久存储。
 
-访客内容只保留在当前页面；登录后由用户主动选择保存到云端。情绪统计与建议使用透明规则，不将私人日记发送给大模型。
+访客可选择心情、写草稿和体验活动，但不能创建日记或活动记录。点击保存会明确提示注册/登录并说明“尚未记录”；草稿只保留在当前页面，登录并验证邮箱后需主动再次保存到个人云端。情绪统计与建议使用透明规则，不将私人日记发送给大模型。
 
 涂鸦在当前页面内存中保留，切换站内页面后可继续，刷新后清除；换账号会清除前一人的作品。画作、星图连线与操作轨迹不上传。自由活动只保存名称、实际时长和本人反馈，使用 `play` 类型，沿用旧的关怀记录结构。
 
@@ -56,3 +56,13 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 - [MDN touch-action](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action)、[Three.js Raycaster](https://threejs.org/docs/pages/Raycaster.html)：触屏滚动边界与真实部位命中的实现依据。
 
 片刻用于自我记录与日常关怀，不提供诊断或疗效承诺。
+
+
+## 账号与界面审查（2026-11-03）
+
+- 登录、注册、找回密码使用独立表单，提供可见标签、密码显示切换、确认密码、字段错误、明确的成功状态和发送冷却。登录默认仅本次浏览器会话；勾选“记住登录”才持久保持。
+- 首页与日记、回顾、活动、账号共用圆体、导航、字号和按钮尺度；保留首页居中角色及按需展开的文字区。
+- 日记/活动保存统一要求本人已验证邮箱；返回登录不自动提交。活动反馈在内存保留，返回后本人可再次保存，画作和操作轨迹不上传。
+- 切换账号立即隔离旧记录和草稿，迟到的保存/订阅响应不能覆盖新账号状态；活动保存重试沿用相同编号与反馈。
+- 回顾与活动统计共用自然日窗口，情境回看保留所选范围，旧日期链接定位对应月历，无效URL筛选不会隐形生效。
+- 表单设计参考：[GOV.UK密码输入](https://design-system.service.gov.uk/components/password-input/)、[USWDS登录表单](https://designsystem.digital.gov/templates/form-templates/sign-in-form/)、[W3C表单指南](https://www.w3.org/WAI/tutorials/forms/)。

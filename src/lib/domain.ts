@@ -1,5 +1,5 @@
 import { MOODS, SETTINGS } from '../config.ts';
-import type { CareKind, CareSession, EntryDraft, MoodEntry } from '../types.ts';
+import type { CareKind, CareSession, MoodEntry } from '../types.ts';
 
 /** 使用本地日历日期归档，避免 UTC 跨日使夜间记录跑到前一天。 */
 export function dayKey(value: string | Date): string {
@@ -14,12 +14,6 @@ export function shiftDay(date: Date, amount: number): Date {
   const result = new Date(date);
   result.setDate(result.getDate() + amount);
   return result;
-}
-
-/** 访客记录只保留在内存中；与正式云端日记使用相同类型。 */
-export function makeGuestEntry(draft: EntryDraft): MoodEntry {
-  const now = new Date().toISOString();
-  return { ...draft, id: crypto.randomUUID(), createdAt: now, updatedAt: now, revision: 1 };
 }
 
 /** 统计以自然日为窗口；空缺日保持 null，不能误当作低情绪。 */

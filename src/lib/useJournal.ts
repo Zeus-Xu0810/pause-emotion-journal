@@ -2,82 +2,71 @@ import { useEffect, useRef, useState } from 'react';
 import type { AuthSession } from './firebase';
 import { friendlyCloudError } from './firebase';
 import * as repository from './repository';
-import { makeGuestEntry } from './domain';
+import { requireSaveOwner } from './save-policy';
 import type { CareSession, EntryDraft, MoodEntry } from '../types';
 
-/** 统一管理访客内存和个人云端；账号切换时先撤订阅、清空上一人的画面。 */
+type SyncState = 'idle' | 'saving' | 'synced' | 'error';
+interface JournalData { epoch: number; entries: MoodEntry[]; sessions: CareSession[]; entriesReady: boolean; sessionsReady: boolean }
+const emptyData = (epoch: number): JournalData => ({ epoch, entries: [], sessions: [], entriesReady: false, sessionsReady: false });
+
+/** 仅管理本人云记录；未登录只允许编辑草稿和体验活动，不能创建“访客已保存”记录。 */
 export function useJournal(session: AuthSession, onNotice: (message: string) => void) {
-  const [guestEntries, setGuestEntries] = useState<MoodEntry[]>([]);
-  const [guestSessions, setGuestSessions] = useState<CareSession[]>([]);
-  const [cloudEntries, setCloudEntries] = useState<MoodEntry[]>([]);
-  const [cloudSessions, setCloudSessions] = useState<CareSession[]>([]);
-  const [loadedUid, setLoadedUid] = useState<string | null>(null);
-  const [sync, setSync] = useState<'idle' | 'saving' | 'synced' | 'error'>('idle');
-  const previousUid = useRef<string | null>(null);
   const uid = session.user?.uid ?? null;
   const cloud = Boolean(uid && session.user?.emailVerified);
+  const key = `${uid ?? 'guest'}:${session.user?.emailVerified ? 1 : 0}:${session.ready ? 1 : 0}`;
+  const ownership = useRef({ key, epoch: 0 });
+  // 渲染时就隔离旧身份，不能等待订阅清理后再隐藏前一人的数据。
+  if (ownership.current.key !== key) ownership.current = { key, epoch: ownership.current.epoch + 1 };
+  const epoch = ownership.current.epoch;
+  const [data, setData] = useState<JournalData>(() => emptyData(epoch));
+  const [status, setStatus] = useState<{ epoch: number; value: SyncState }>({ epoch, value: 'idle' });
+  const requests = useRef({ epoch, count: 0 });
+  const current = () => ownership.current.epoch === epoch;
+  const publish = (value: SyncState) => { if (current()) setStatus({ epoch, value }); };
 
   useEffect(() => {
-    let active = true;
-    const changedAccount = previousUid.current && previousUid.current !== uid;
-    if (changedAccount) { setGuestEntries([]); setGuestSessions([]); }
-    previousUid.current = uid;
-    setCloudEntries([]);
-    setCloudSessions([]);
-    setLoadedUid(null);
-    setSync('idle');
-    if (!uid || !session.user?.emailVerified) return;
-    const failed = (error: Error) => { if (active) { setSync('error'); onNotice(friendlyCloudError(error)); } };
-    const stopEntries = repository.subscribeEntries(uid, entries => { if (active) { setCloudEntries(entries); setLoadedUid(uid); } }, failed, fromCache => { if (active) setSync(fromCache ? 'idle' : 'synced'); });
-    const stopSessions = repository.subscribeCareSessions(uid, sessions => { if (active) { setCloudSessions(sessions); setLoadedUid(uid); } }, failed);
+    let active = true; let reported = false;
+    let stopEntries = () => {}; let stopSessions = () => {};
+    requests.current = { epoch, count: 0 };
+    setData(emptyData(epoch)); setStatus({ epoch, value: 'idle' });
+    if (!cloud || !uid) return;
+    const valid = () => active && ownership.current.epoch === epoch;
+    const failed = (error: Error) => { if (valid()) { setStatus({ epoch, value: 'error' }); if (!reported) onNotice(friendlyCloudError(error)); reported = true; } };
+    try {
+      stopEntries = repository.subscribeEntries(uid, entries => {
+        if (valid()) setData(previous => previous.epoch === epoch ? { ...previous, entries, entriesReady: true } : previous);
+      }, failed, fromCache => {
+        if (valid() && !(requests.current.epoch === epoch && requests.current.count > 0)) { setStatus({ epoch, value: fromCache ? 'idle' : 'synced' }); if (!fromCache) reported = false; }
+      });
+      stopSessions = repository.subscribeCareSessions(uid, sessions => {
+        if (valid()) setData(previous => previous.epoch === epoch ? { ...previous, sessions, sessionsReady: true } : previous);
+      }, failed);
+    } catch (error) { failed(error instanceof Error ? error : new Error('暂时无法连接个人记录。')); }
     return () => { active = false; stopEntries(); stopSessions(); };
-  }, [uid, session.user?.emailVerified, onNotice]);
+  }, [uid, cloud, epoch, onNotice]);
 
-  /** 只有服务器确认后才返回成功；网络失败时编辑器由调用方保留。 */
-  async function save(draft: EntryDraft, editing: MoodEntry | null) {
-    if (session.user && !session.user.emailVerified) throw new Error('请先到「我的空间」验证邮箱，当前输入仍保留在页面中。');
-    setSync('saving');
+  /** 每次写入带身份代次，旧账号的迟到响应不能覆盖新账号的同步提示。 */
+  async function mutate<T>(operation: (owner: string) => Promise<T>): Promise<T> {
+    if (!current()) throw new Error('账号已变化，请在当前账号中重新操作。');
+    const owner = requireSaveOwner(session);
+    if (requests.current.epoch !== epoch) requests.current = { epoch, count: 0 };
+    requests.current.count += 1; publish('saving');
     try {
-      if (cloud && uid) {
-        const entry = editing ? await repository.updateEntry(uid, editing, draft) : await repository.createEntry(uid, draft);
-        setSync('synced');
-        return entry;
-      }
-      const entry = editing ? { ...editing, ...draft, revision: editing.revision + 1, updatedAt: new Date().toISOString() } : makeGuestEntry(draft);
-      setGuestEntries(entries => [entry, ...entries.filter(item => item.id !== entry.id)].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)));
-      setSync('idle');
-      return entry;
-    } catch (error) { setSync('error'); throw error; }
+      const result = await operation(owner);
+      if (current()) { requests.current.count = Math.max(0, requests.current.count - 1); publish(requests.current.count ? 'saving' : 'synced'); }
+      return result;
+    } catch (error) {
+      if (current()) { requests.current.count = Math.max(0, requests.current.count - 1); publish('error'); }
+      throw error;
+    }
   }
-  async function remove(entry: MoodEntry) {
-    if (cloud && uid) { setSync('saving'); try { await repository.deleteEntry(uid, entry); setSync('synced'); } catch (error) { setSync('error'); throw error; } }
-    else setGuestEntries(entries => entries.filter(item => item.id !== entry.id));
-  }
-  async function saveCare(careSession: CareSession) {
-    if (session.user && !session.user.emailVerified) throw new Error('练习已结束。验证邮箱后才能保存到云端；你仍可继续体验。');
-    if (cloud && uid) { setSync('saving'); try { await repository.saveCareSession(uid, careSession); setSync('synced'); } catch (error) { setSync('error'); throw error; } }
-    // 失败后重试复用原记录编号，访客内存也保持幂等，避免重复计数。
-    else setGuestSessions(sessions => [careSession, ...sessions.filter(item => item.id !== careSession.id)]);
-  }
-
-  /** 迁移必须由用户主动触发；逐条成功后移出待迁移列表，失败可安全重试。 */
-  async function importGuest() {
-    if (!cloud || !uid) throw new Error('请先登录并验证邮箱。');
-    setSync('saving');
-    try {
-      for (const entry of guestEntries) {
-        const { mood, feelings, contexts, note, occurredAt } = entry;
-        await repository.createEntry(uid, { mood, feelings, contexts, note, occurredAt });
-        setGuestEntries(current => current.filter(item => item.id !== entry.id));
-      }
-      for (const care of guestSessions) {
-        await repository.saveCareSession(uid, { ...care, entryId: null });
-        setGuestSessions(current => current.filter(item => item.id !== care.id));
-      }
-      setSync('synced');
-    } catch (error) { setSync('error'); throw error; }
-  }
-  // 渲染时就按加载者 UID 隔离，不能等副作用清空后才隐藏前一账号数据。
-  const switching = Boolean(previousUid.current && previousUid.current !== uid);
-  return { entries: cloud ? loadedUid === uid ? cloudEntries : [] : switching ? [] : guestEntries, sessions: cloud ? loadedUid === uid ? cloudSessions : [] : switching ? [] : guestSessions, cloud, sync: cloud && loadedUid !== uid ? 'idle' : sync, save, remove, saveCare, importGuest, pendingGuest: cloud && !switching ? guestEntries.length + guestSessions.length : 0 };
+  const save = (draft: EntryDraft, editing: MoodEntry | null) => mutate(owner => editing ? repository.updateEntry(owner, editing, draft) : repository.createEntry(owner, draft));
+  const remove = (entry: MoodEntry) => mutate(owner => repository.deleteEntry(owner, entry));
+  const saveCare = (care: CareSession) => mutate(owner => repository.saveCareSession(owner, care));
+  const visible = cloud && data.epoch === epoch;
+  return {
+    entries: visible ? data.entries : [], sessions: visible ? data.sessions : [], cloud,
+    loading: cloud && status.value !== 'error' && (!visible || !data.entriesReady || !data.sessionsReady),
+    sync: status.epoch === epoch ? status.value : 'idle', save, remove, saveCare,
+  };
 }
