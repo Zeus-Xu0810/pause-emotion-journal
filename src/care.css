@@ -1,16 +1,16 @@
 /* 关怀工作室是一处居中练习空间，不再使用左右卡片与重复长说明。 */
-.cs-studio { min-width: 0; max-width: 590px; margin: 0 auto; }
-.cs-kind-tabs { display: flex; align-items: center; justify-content: center; gap: 6px; width: max-content; max-width: 100%; padding: 4px; margin: 0 auto 28px; border-radius: 28px; background: #edf3ef; }
-.cs-kind-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 99px; min-height: 42px; padding: 10px 17px; border: 0; border-radius: 24px; background: transparent; color: var(--ink-soft); font-size: 14px; }
+.cs-studio { min-width: 0; max-width: 660px; margin: 0 auto; }
+.cs-kind-tabs { display: flex; align-items: center; justify-content: center; gap: 6px; width: max-content; max-width: 100%; padding: 4px; margin: 0 auto 28px; border-radius: var(--pill-radius); background: #edf3ef; }
+.cs-kind-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 99px; min-height: var(--control-height); padding: 10px 17px; border: 0; border-radius: var(--pill-radius); background: transparent; color: var(--ink-soft); font-size: var(--text); }
 .cs-kind-tabs button svg { width: 16px; height: 16px; stroke-width: 1.6; }
 .cs-kind-tabs button:hover:not(:disabled) { color: var(--ink); background: #e2ede5; }
 .cs-kind-tabs button.is-active { background: white; color: var(--ink); box-shadow: 0 1px 8px #233d3506; }
 .cs-practice { padding-top: 8px; }
 .cs-intro { text-align: center; }
-.cs-intro h2 { font-size: 26px; font-weight: 400; margin: 0 0 12px; line-height: 1.6; }
+.cs-intro h2 { font-size: var(--subheading-size); font-weight: 400; margin: 0 0 12px; line-height: 1.6; }
 .cs-kicker { display: none; }
-.cs-description { max-width: 360px; margin: 0 auto; color: var(--ink-soft); font-size: 13px; line-height: 1.9; }
-.cs-session-footer { max-width: 350px; margin: 0 auto; }
+.cs-description { max-width: 360px; margin: 0 auto; color: var(--ink-soft); font-size: var(--small); line-height: 1.9; }
+.cs-session-footer { max-width: 390px; margin: 0 auto; }
 
 /* 呼吸环以细边线和轻盈的材质阴影表达节奏，文字始终稳定可读。 */
 .cs-breath-stage { display: grid; place-items: center; position: relative; height: 282px; min-width: 0; overflow: hidden; margin: 2px auto 3px; }
@@ -18,40 +18,40 @@
 .cs-breath-track::before { content: ''; position: absolute; inset: 15px; border: 1px solid #e7eee8; border-radius: 50%; }
 .cs-breath-track span { position: absolute; width: 4px; height: 4px; top: 20px; left: 40px; border-radius: 50%; background: #b2caba; }
 .cs-breath-track span + span { top: auto; left: auto; right: 40px; bottom: 20px; background: #ddc6ab; }
-.cs-breath-circle { display: grid; place-items: center; width: 160px; height: 160px; border: 1px solid #c8ddce; border-radius: 50%; background: #e0ede3; box-shadow: inset 0 3px 14px #fff9, inset 0 -10px 22px #acc9b532, 0 12px 35px #88ab9412; }
+.cs-breath-circle { display: grid; place-items: center; width: 176px; height: 176px; border: 1px solid #c8ddce; border-radius: 50%; background: #e0ede3; box-shadow: inset 0 3px 14px #fff9, inset 0 -10px 22px #acc9b532, 0 12px 35px #88ab9412; }
 .cs-breath-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; white-space: nowrap; }
-.cs-breath-center strong { font-size: 19px; font-weight: 400; }
-.cs-breath-center small { font-size: 12px; color: var(--ink-soft); }
+.cs-breath-center strong { font-size: var(--section-title-size); font-weight: 400; }
+.cs-breath-center small { font-size: var(--small); color: var(--ink-soft); }
 /* 将计时更新插值为连续缩放，文本反向缩放以保持字号稳定。 */
 .cs-breath-circle, .cs-breath-center { transition: transform 120ms linear; will-change: transform; }
 .cs-duration { display: flex; align-items: center; gap: 7px; margin-bottom: 22px; }
-.cs-duration button { flex: 1; min-height: 40px; padding: 8px 7px; border: 1px solid var(--line); border-radius: 23px; background: transparent; color: var(--ink-soft); font-size: 13px; }
+.cs-duration button { flex: 1; min-height: var(--control-height); padding: 8px 7px; border: 1px solid var(--line); border-radius: var(--pill-radius); background: transparent; color: var(--ink-soft); font-size: var(--text); }
 .cs-duration button:hover:not(:disabled) { background: #e9f2eb; border-color: #b7d0bf; }
 .cs-duration button.is-selected { border-color: #b9d1c1; background: var(--mint); color: var(--ink); }
-.cs-timer-line { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: var(--ink-soft); font-size: 12px; }
-.cs-timer-line [role='timer'] { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cs-timer-line { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: var(--ink-soft); font-size: var(--small); }
+.cs-timer-line [role='timer'] { font-size: var(--subheading-size); color: var(--ink); font-variant-numeric: tabular-nums; }
 .cs-progress { height: 2px; background: #e3ede5; overflow: hidden; margin: 13px 0 24px; border-radius: 2px; }
 .cs-progress span { display: block; height: 100%; background: #a5c5ad; }
 .cs-controls { display: flex; align-items: center; justify-content: center; gap: 10px; }
 .cs-controls .primary-button { min-width: 183px; }
-.cs-reset { width: 44px; padding-inline: 12px; }
+.cs-reset { width: var(--control-height); padding-inline: 12px; }
 .cs-exit-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
-.cs-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 39px; padding: 7px 0; border: 0; background: transparent; color: var(--ink-soft); font-size: 12px; }
+.cs-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--compact-control-height); padding: 7px 0; border: 0; background: transparent; color: var(--ink-soft); font-size: var(--small); }
 .cs-text-button:hover { color: var(--ink); }
-.cs-safety { color: var(--ink-soft); font-size: 12px; line-height: 1.9; margin: 22px 0 0; }
+.cs-safety { color: var(--ink-soft); font-size: var(--small); line-height: 1.9; margin: 22px 0 0; }
 
 /* 说明按需展开，保留必要的练习提示而不放大为常驻段落。 */
-.cs-practice details, .cs-info { max-width: 350px; margin: 22px auto 0; color: var(--ink-soft); font-size: 12px; }
-.cs-practice details summary, .cs-info summary { width: max-content; margin: 0 auto; min-height: 36px; cursor: pointer; color: var(--ink-soft); }
-.cs-practice details p, .cs-info p { font-size: 12px; line-height: 1.9; margin: 8px 0; }
+.cs-practice details, .cs-info { max-width: 390px; margin: 22px auto 0; color: var(--ink-soft); font-size: var(--small); }
+.cs-practice details summary, .cs-info summary { width: max-content; margin: 0 auto; min-height: var(--compact-control-height); cursor: pointer; color: var(--ink-soft); }
+.cs-practice details p, .cs-info p { font-size: var(--small); line-height: 1.9; margin: 8px 0; }
 
 /* 正念与活动每次只呈现当前步骤，数字与短提示在同一焦点内。 */
 .cs-guidance { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 24px; min-height: 284px; max-width: 400px; margin: 0 auto 18px; text-align: center; padding: 25px 15px; }
-.cs-step-index { color: #a7b7ab; font-size: 12px; }
-.cs-step-index span:first-child { font-size: 31px; color: #b5a38a; }
-.cs-guidance-copy h3 { font-size: 24px; font-weight: 400; margin: 0 0 13px; }
-.cs-guidance-copy p { font-size: 15px; line-height: 1.9; color: var(--ink-soft); margin: 0; }
-.cs-guidance-copy small { display: block; max-width: 300px; margin: 16px auto 0; font-size: 12px; color: #85958a; line-height: 1.9; }
+.cs-step-index { color: #a7b7ab; font-size: var(--small); }
+.cs-step-index span:first-child { font-size: var(--number-size); color: #b5a38a; }
+.cs-guidance-copy h3 { font-size: var(--section-title-size); font-weight: 400; margin: 0 0 13px; }
+.cs-guidance-copy p { font-size: var(--text); line-height: 1.9; color: var(--ink-soft); margin: 0; }
+.cs-guidance-copy small { display: block; max-width: 300px; margin: 16px auto 0; font-size: var(--small); color: #85958a; line-height: 1.9; }
 .cs-step-progress { display: flex; width: 110px; gap: 5px; margin-top: 4px; }
 .cs-step-progress span { flex: 1; height: 3px; border-radius: 2px; background: #e0eae2; }
 .cs-step-progress span.is-active { background: #a8c3af; }
@@ -62,14 +62,14 @@
 .cs-sound-art span { width: 3px; border-radius: 2px; background: currentColor; transform: scaleY(.6); }
 .cs-sound-art.is-playing span { animation: cs-sound-swell 3s ease-in-out infinite alternate; }
 .cs-sounds { display: flex; flex-direction: column; gap: 6px; }
-.cs-sounds button { display: flex; align-items: center; gap: 14px; min-height: 63px; padding: 12px 15px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink-soft); text-align: left; }
+.cs-sounds button { display: flex; align-items: center; gap: 14px; min-height: 63px; padding: 12px 15px; border: 1px solid transparent; border-radius: var(--field-radius); background: transparent; color: var(--ink-soft); text-align: left; }
 .cs-sounds button.is-selected { background: #e8f1e9; color: var(--ink); }
 .cs-sounds button:hover:not(:disabled) { background: #edf4ee; }
 .cs-sounds button > span { display: flex; flex: 1; flex-direction: column; gap: 3px; }
-.cs-sounds strong { font-size: 14px; font-weight: 400; }
-.cs-sounds small { color: #829388; font-size: 11px; }
+.cs-sounds strong { font-size: var(--text); font-weight: 400; }
+.cs-sounds small { color: #829388; font-size: var(--small); }
 .cs-sounds button > svg { width: 18px; height: 18px; }
-.cs-volume { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding-inline: 10px; font-size: 12px; color: var(--ink-soft); }
+.cs-volume { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding-inline: 10px; font-size: var(--small); color: var(--ink-soft); }
 .cs-volume input { accent-color: #87ac93; width: 100%; min-width: 40px; flex: 1; cursor: pointer; }
 .cs-volume output { min-width: 31px; text-align: right; font-variant-numeric: tabular-nums; }
 @keyframes cs-sound-swell { from { transform: scaleY(.4); } to { transform: scaleY(.9); } }
@@ -77,11 +77,11 @@
 /* 完成反馈使用三个短选择，不将练习结果变成评价用户的评分。 */
 .cs-finish { display: flex; flex-direction: column; align-items: center; gap: 17px; padding: 45px 0 30px; text-align: center; }
 .cs-finish-mark { display: grid; place-items: center; width: 59px; height: 59px; border-radius: 50%; background: #e6f0e7; color: #7caa8a; margin-bottom: 5px; }
-.cs-finish-time { margin: 0; font-size: 12px; color: var(--ink-soft); }
-.cs-finish h3 { margin: 0; font-size: 25px; font-weight: 400; }
-.cs-finish-copy { color: var(--ink-soft); font-size: 13px; margin: 0; }
+.cs-finish-time { margin: 0; font-size: var(--small); color: var(--ink-soft); }
+.cs-finish h3 { margin: 0; font-size: var(--subheading-size); font-weight: 400; }
+.cs-finish-copy { color: var(--ink-soft); font-size: var(--small); margin: 0; }
 .cs-feedback { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 5px 0 7px; }
-.cs-feedback button { min-height: 43px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 24px; background: transparent; font-size: 13px; color: var(--ink-soft); }
+.cs-feedback button { min-height: var(--control-height); padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--pill-radius); background: transparent; font-size: var(--text); color: var(--ink-soft); }
 .cs-feedback button:hover:not(:disabled), .cs-feedback button.is-selected { background: var(--mint); border-color: #b4d0be; color: var(--ink); }
 .cs-compact-meta { display: none; }
 .cs-compact { max-width: 400px; }
@@ -89,21 +89,21 @@
 /* 手机沿用相同的单一焦点，控制器与内容不需额外跳转。 */
 @media (max-width: 640px) {
   .cs-kind-tabs { width: 100%; gap: 3px; padding: 4px; margin-bottom: 25px; }
-  .cs-kind-tabs button { flex: 1; min-width: 0; min-height: 41px; padding: 9px 8px; gap: 6px; font-size: 13px; }
+  .cs-kind-tabs button { flex: 1; min-width: 0; min-height: var(--control-height); padding: 9px 8px; gap: 6px; font-size: var(--text); }
   .cs-kind-tabs button svg { width: 15px; height: 15px; }
-  .cs-intro h2 { font-size: 24px; }
-  .cs-description { font-size: 12px; max-width: 270px; }
-  .cs-breath-stage { height: 265px; }
-  .cs-session-footer { max-width: 310px; }
-  .cs-duration button { min-height: 42px; font-size: 13px; }
+  .cs-intro h2 { font-size: var(--subheading-size); }
+  .cs-description { font-size: var(--small); max-width: 270px; }
+  .cs-breath-stage { height: 240px; }
+  .cs-session-footer { max-width: 330px; }
+  .cs-duration button { min-height: var(--control-height); font-size: var(--text); }
   .cs-guidance { min-height: 268px; padding-inline: 8px; }
-  .cs-guidance-copy h3 { font-size: 23px; }
-  .cs-guidance-copy p { font-size: 14px; }
-  .cs-guidance-copy small { font-size: 12px; }
+  .cs-guidance-copy h3 { font-size: var(--section-title-size); }
+  .cs-guidance-copy p { font-size: var(--text); }
+  .cs-guidance-copy small { font-size: var(--small); }
   .cs-sound-stage { max-width: 335px; }
   .cs-sound-art { height: 116px; }
   .cs-feedback { gap: 6px; }
-  .cs-feedback button { font-size: 12px; padding-inline: 13px; }
+  .cs-feedback button { font-size: var(--text); padding-inline: 13px; }
   .cs-finish { padding-block: 40px; }
 }
 
