@@ -1,0 +1,8 @@
+{
+  "indexes": [],
+  "fieldOverrides": [
+    { "collectionGroup": "entries", "fieldPath": "note", "indexes": [] },
+    { "collectionGroup": "entries", "fieldPath": "feelings", "indexes": [] },
+    { "collectionGroup": "entries", "fieldPath": "contexts", "indexes": [] }
+  ]
+}

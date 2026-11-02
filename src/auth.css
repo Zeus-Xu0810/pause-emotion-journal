@@ -1,0 +1,51 @@
+/* 账号页面沿用全站颜色与尺寸变量，在移动端收为单栏。 */
+.account-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 50px; max-width: 1030px; margin: 0 auto 60px; align-items: start; }
+.account-form-panel { padding: 34px 38px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.account-heading { display: flex; gap: 16px; align-items: center; }
+.account-heading .eyebrow { font-size: 12px; margin-bottom: 10px; }
+.account-heading h2 { margin: 0; font: 500 25px/1.5 var(--font-serif); }
+.account-copy { margin: 19px 0 28px; color: var(--ink-soft); font-size: 14px; line-height: 1.9; }
+.account-tabs { display: flex; gap: 25px; border-bottom: 1px solid var(--line); margin: 24px 0; }
+.account-tabs button { background: transparent; padding: 12px 0; border: 0; border-bottom: 2px solid transparent; font-size: 14px; color: var(--muted); }
+.account-tabs button.is-active { color: var(--green); border-bottom-color: var(--green); }
+
+/* 表单状态保持清楚的标签、对比度和真实的忙碌/错误反馈。 */
+.account-form { display: flex; flex-direction: column; gap: 10px; }
+.account-form > label { color: var(--ink-soft); font-size: 14px; margin-top: 6px; }
+.account-form input:not([type="checkbox"]) { width: 100%; min-width: 0; min-height: 45px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); padding: 11px 13px; font-size: 14px; color: var(--ink); }
+.account-form input::placeholder { color: var(--muted); font-size: 14px; }
+.account-form .account-remember { display: flex; gap: 8px; align-items: center; margin: 8px 0 7px; font-size: 14px; cursor: pointer; }
+.account-remember input { accent-color: var(--green); width: 15px; height: 15px; margin: 0; }
+.account-primary, .account-secondary { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 16px; border: 1px solid var(--green); border-radius: var(--radius); font-size: 14px; }
+.account-primary { background: var(--green); color: #fff; }
+.account-primary:hover:not(:disabled) { background: var(--green-deep); }
+.account-secondary { background: transparent; border-color: var(--line); color: var(--ink); }
+.account-secondary:hover:not(:disabled) { background: var(--green-light); }
+.account-submit { justify-content: space-between; margin-top: 7px; padding: 13px 16px; }
+.account-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; padding: 10px 0; background: none; color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
+.account-reset-link { align-self: center; }
+.account-message { font-size: 14px; line-height: 1.8; padding: 12px 14px; background: var(--green-light); border-radius: var(--radius); margin: 19px 0 0; overflow-wrap: anywhere; }
+.account-message.is-error { background: #fbefeb; color: #88432e; }
+.account-unavailable { padding: 14px 16px; margin: 0 0 18px; background: #f7f2e5; color: #766139; border: 1px solid #eadfc7; border-radius: var(--radius); }
+.account-unavailable strong, .account-verification strong { font-size: 14px; font-weight: 600; }
+.account-unavailable p, .account-verification p { margin: 7px 0 0; font-size: 14px; line-height: 1.9; }
+.account-email { display: flex; gap: 8px; align-items: center; margin: 25px 0; font-size: 14px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.account-verification { display: flex; align-items: flex-start; gap: 11px; margin: 23px 0; padding: 15px; background: #f7f2e5; border-radius: var(--radius); }
+.account-verification svg { flex-shrink: 0; margin-top: 1px; }
+.account-verification.is-verified { background: var(--green-light); }
+.account-actions { display: flex; align-items: center; gap: 18px; justify-content: space-between; flex-wrap: wrap; margin: 18px 0 9px; }
+.account-inline { display: flex; gap: 10px; }
+.account-inline .account-secondary { flex-shrink: 0; }
+.account-divider { height: 1px; background: var(--line); margin: 27px 0 10px; }
+.account-reset-heading h3 { margin: 0; font: 500 20px var(--font-serif); }
+.account-reset-heading p { font-size: 14px; line-height: 1.8; color: var(--ink-soft); }
+
+/* 隐私说明保持轻量的杂志式排版，不将技术设置带入用户流程。 */
+.account-note { padding: 34px 8px; }
+.account-note-number { color: var(--muted); font-size: 12px; }
+.account-note h3 { font: 500 29px/1.8 var(--font-serif); margin: 28px 0 22px; }
+.account-note p { color: var(--ink-soft); font-size: 14px; line-height: 2.1; }
+.account-note-line { width: 34px; border-top: 1px solid #b4c3af; margin: 28px 0; }
+.account-note-foot { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 31px; }
+@media (max-width: 1000px) { .account-layout { grid-template-columns: 1fr; gap: 10px; max-width: 600px; } .account-note { padding: 20px 8px; } .account-note h3 br { display: none; } .account-note h3 { font-size: 24px; margin: 18px 0; } }
+@media (max-width: 520px) { .account-form-panel { padding: 25px 22px; } .account-heading h2 { font-size: 23px; } .account-layout { margin-bottom: 25px; } .account-inline { flex-wrap: wrap; } .account-form input:not([type="checkbox"]) { font-size: 16px; } }

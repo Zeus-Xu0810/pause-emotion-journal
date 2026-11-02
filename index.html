@@ -6,38 +6,11 @@
     <meta name="description" content="片刻：情绪日记与自我关怀。" />
     <meta name="theme-color" content="#244c3b" />
     <title>片刻 · 情绪日记与自我关怀</title>
-    <style>
-      /* 可自定义的颜色与字体统一放在这里。 */
-      :root {
-        --paper: #f8f9f5;
-        --ink: #244c3b;
-        --muted: #66756c;
-        --line: #d8e0d8;
-        --font: "Microsoft YaHei", "PingFang SC", sans-serif;
-      }
-      /* 公开入口仅保留品牌与主题，后续沿用相同网址更新。 */
-      * { box-sizing: border-box; }
-      body { margin: 0; min-height: 100svh; background: var(--paper); color: var(--ink); font-family: var(--font); display: grid; place-items: center; padding: 32px; }
-      main { width: min(100%, 680px); }
-      .mark { width: 64px; height: 64px; margin-bottom: 48px; }
-      .label { font-size: 12px; margin: 0 0 20px; }
-      h1 { font-size: 56px; line-height: 1.2; font-weight: 500; margin: 0 0 24px; }
-      .intro { color: var(--muted); font-size: 18px; line-height: 1.8; margin: 0; }
-      footer { border-top: 1px solid var(--line); margin-top: 64px; padding-top: 20px; color: var(--muted); font-size: 12px; }
-      @media (max-width: 480px) { h1 { font-size: 44px; } .intro { font-size: 16px; } }
-    </style>
   </head>
   <body>
-    <!-- 品牌图形使用内联矢量，不依赖外部图片或字体服务。 -->
-    <main>
-      <svg class="mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="1.5" />
-        <path d="M25 22v20M39 22v20" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
-      </svg>
-      <p class="label">PAUSE / 留一点时间给自己</p>
-      <h1>片刻</h1>
-      <p class="intro">情绪日记与自我关怀</p>
-      <footer>这里，留给此刻的你。</footer>
-    </main>
+    <!-- 应用所有内容由本地打包资源呈现，未启用脚本时给出明确提示。 -->
+    <div id="root"></div>
+    <noscript>片刻需要启用 JavaScript 才能记录情绪与使用关怀练习。</noscript>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -2,7 +2,12 @@
 .vercel/
 .env
 .env.*
+!.env.example
 node_modules/
 dist/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
 
 .vercel
