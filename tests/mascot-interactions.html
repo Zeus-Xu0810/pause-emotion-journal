@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>团子 DOM 交互回归</title>
+    <style>
+      /* 此页只供本地Vite验收，未配置为production构建入口。 */
+      body.mascot-fixture { margin: 0; padding: 28px 18px; color: #294737; background: #f7f8f2; font-family: 'Pause Round', sans-serif; }
+      .mascot-fixture main { max-width: 760px; margin: auto; }
+      .mascot-fixture h1 { margin: 0 0 12px; font-size: 25px; }
+      .mascot-fixture p { line-height: 1.7; }
+      .fixture-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+      .mascot-fixture .fixture-actions button { padding: 11px 18px; border: 1px solid #a7b9a2; border-radius: 16px; background: #e3eadc; color: #294737; cursor: pointer; }
+      #interaction-status { font-weight: bold; }
+      #interaction-status[data-status='passed'], #interaction-results [data-result='pass'] { color: #276046; }
+      #interaction-status[data-status='failed'], #interaction-results [data-result='fail'] { color: #ae342b; }
+      #interaction-results { min-height: 180px; padding-left: 24px; line-height: 1.8; }
+      #test-mount { max-width: 620px; margin: 14px auto; border: 1px solid #dfe6d7; border-radius: 28px; background: #fffef8; }
+      /* 固定实际视觉舞台高度；不依赖生产页面的父层布局。 */
+      .mascot-fixture #test-mount .mood-sculpture { height: 456px; grid-template-rows: 54px 360px 42px; }
+      .mascot-fixture #test-mount .mascot-visual-stage { height: 360px; }
+      .fixture-note { font-size: 13px; color: #61715f; }
+    </style>
+  </head>
+  <body class="mascot-fixture">
+    <main>
+      <h1>团子 DOM 交互回归</h1>
+      <p>使用真实 React 组件接收合成指针和键盘事件，只检查页面公开属性。这是 DOM 集成测试，不代替实体手机的滚动、多指或系统缩放验收。</p>
+      <div class="fixture-actions">
+        <button id="run-interaction-tests" type="button">运行交互回归</button>
+        <button id="focus-away" type="button">焦点移开目标</button>
+        <output id="interaction-status" data-status="idle" aria-live="polite">尚未运行</output>
+      </div>
+      <ol id="interaction-results" aria-live="polite"></ol>
+      <div id="test-mount"></div>
+      <p class="fixture-note">仅此页停用 WebGL，保留 Canvas 2D。编号 ≥ 8000 的合成指针使用局部捕获替身；真实鼠标与触屏仍调用浏览器原生方法。测试不读写日记或账号。</p>
+    </main>
+    <script type="module">
+      import React from 'react';
+      import { createRoot } from 'react-dom/client';
+      import MoodSculpture from '../src/components/MoodSculpture.tsx';
+      import { MASCOT_INTERACTION_SETTINGS as SETTINGS } from '../src/mascot-interaction-content.ts';
+      import '../src/styles.css';
+
+      /** 验收输入集中配置；生产交互阈值直接取组件同一份设置，避免复制魔法数字。 */
+      const FIXTURE = {
+        syntheticPointerMinimum: 8000,
+        idleMarginMs: 70,
+        pinchTravelPx: 40,
+        scrollTravelPx: 42,
+        dragTravelPx: { x: 46, y: 18 },
+        faces: { left: { x: 0.25, y: 0.48 }, right: { x: 0.75, y: 0.48 } },
+        belly: { x: 0.5, y: 0.72 },
+      };
+
+      /** 只在本验收页强制CSS后备；2D导出等其他上下文原样交还浏览器。 */
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+        if (['webgl', 'webgl2', 'experimental-webgl'].includes(kind)) return null;
+        return originalGetContext.call(this, kind, ...args);
+      };
+
+      /** 合成PointerEvent不是浏览器原生活跃指针，仅这些专用ID模拟捕获。 */
+      const captures = new WeakMap();
+      const originalCapture = Element.prototype.setPointerCapture;
+      const originalRelease = Element.prototype.releasePointerCapture;
+      const originalHasCapture = Element.prototype.hasPointerCapture;
+      Element.prototype.setPointerCapture = function (id) {
+        if (id < FIXTURE.syntheticPointerMinimum) return originalCapture.call(this, id);
+        const ids = captures.get(this) ?? new Set(); ids.add(id); captures.set(this, ids);
+      };
+      Element.prototype.hasPointerCapture = function (id) {
+        return id < FIXTURE.syntheticPointerMinimum ? originalHasCapture.call(this, id) : Boolean(captures.get(this)?.has(id));
+      };
+      Element.prototype.releasePointerCapture = function (id) {
+        if (id < FIXTURE.syntheticPointerMinimum) return originalRelease.call(this, id);
+        if (captures.get(this)?.delete(id)) {
+          // 原生捕获会在释放后通知lostpointercapture，替身也投递同名DOM事件。
+          queueMicrotask(() => this.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId: id })));
+        }
+      };
+
+      const mount = document.querySelector('#test-mount');
+      const root = createRoot(mount);
+      const runButton = document.querySelector('#run-interaction-tests');
+      const focusAway = document.querySelector('#focus-away');
+      const status = document.querySelector('#interaction-status');
+      const results = document.querySelector('#interaction-results');
+      let instance = 0;
+      let running = false;
+      const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      const frames = async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); };
+      const expect = (condition, message) => { if (!condition) throw new Error(message); };
+      const target = () => mount.querySelector('.mascot-touch-target');
+      const sculpture = () => mount.querySelector('.mood-sculpture');
+      const activeGesture = () => target()?.dataset.gesture;
+      const totalGesture = () => sculpture()?.dataset.gesture;
+
+      /** 每例重挂真实组件，隔离前例回复计时器；只读DOM检查挂载结果。 */
+      async function fresh(mode = 'auto') {
+        root.render(React.createElement(MoodSculpture, { key: ++instance, mood: null }));
+        await frames(); await frames();
+        expect(Boolean(mount.querySelector('.mascot-static-body')), '未挂载CSS后备团子');
+        if (mode !== 'auto') {
+          const label = { pinch: '捏脸', drag: '拽拽' }[mode];
+          const button = [...mount.querySelectorAll('.mascot-tools button')].find(node => node.textContent.trim() === label);
+          expect(Boolean(button), `未找到${label}工具`); button.click(); await frames();
+        }
+        expect(target()?.dataset.mode === mode, `模式未切换为${mode}`);
+        expect(activeGesture() === 'idle', '新场景不是idle');
+      }
+
+      /** 坐标取实际绘制身体框，避免把触控按钮的透明角误作脸颊。 */
+      function point(part) {
+        const box = mount.querySelector('.mascot-static-body').getBoundingClientRect();
+        expect(box.width > 0 && box.height > 0, '团子身体尺寸为0');
+        return { x: box.left + box.width * part.x, y: box.top + box.height * part.y };
+      }
+      function blankPoint() {
+        const box = target().getBoundingClientRect();
+        return { x: box.left + 2, y: box.top + 2 };
+      }
+      function pointer(type, id, at, primary = true, pointerType = 'touch') {
+        const node = target();
+        node.dispatchEvent(new PointerEvent(type, {
+          bubbles: true, cancelable: true, pointerId: id, pointerType, isPrimary: primary,
+          clientX: at.x, clientY: at.y, button: 0, buttons: ['pointerup', 'pointercancel'].includes(type) ? 0 : 1,
+          width: 1, height: 1, pressure: ['pointerup', 'pointercancel'].includes(type) ? 0 : 0.5,
+        }));
+        // 合成事件没有浏览器的隐式释放步骤，结束时补齐它；不触及真实指针。
+        if (['pointerup', 'pointercancel'].includes(type) && node.hasPointerCapture(id)) node.releasePointerCapture(id);
+      }
+      function keyboard(node, type, key) {
+        node.dispatchEvent(new KeyboardEvent(type, { bubbles: true, cancelable: true, key, code: key }));
+      }
+      async function expectIdleAfterHold() {
+        await wait(SETTINGS.longPressMs + FIXTURE.idleMarginMs); await frames();
+        expect(activeGesture() === 'idle', `操作残留：${activeGesture()}`);
+        expect(totalGesture() === 'idle', `出现迟到反馈：${totalGesture()}`);
+      }
+
+      /** 场景覆盖焦点迁移、多指取消、透明命中、滚动让行和正常结束。 */
+      const cases = [
+        ['方向键按住后移开焦点，异处释放无残留', async () => {
+          await fresh('drag'); target().focus();
+          keyboard(target(), 'keydown', 'ArrowRight'); await frames();
+          expect(activeGesture() === 'drag', 'ArrowRight未开始拖动');
+          focusAway.focus(); await frames();
+          expect(document.activeElement === focusAway, '焦点未移走');
+          keyboard(focusAway, 'keyup', 'ArrowRight'); await expectIdleAfterHold();
+        }],
+        ['双脸捏合识别后取消，没有迟到长按', async () => {
+          await fresh('pinch');
+          const left = point(FIXTURE.faces.left); const right = point(FIXTURE.faces.right);
+          pointer('pointerdown', 8101, left); pointer('pointerdown', 8102, right, false); await frames();
+          pointer('pointermove', 8102, { x: right.x + FIXTURE.pinchTravelPx, y: right.y }, false); await frames();
+          expect(activeGesture() === 'pinch', `未识别双脸捏合：${activeGesture()}`);
+          pointer('pointercancel', 8102, right, false); await frames();
+          await expectIdleAfterHold(); pointer('pointerup', 8101, left); await frames();
+        }],
+        ['先脸颊、后透明角，整组等待时保持idle', async () => {
+          await fresh('pinch'); const face = point(FIXTURE.faces.left); const blank = blankPoint();
+          pointer('pointerdown', 8201, face); await frames();
+          // data-region用于鼠标视线，不随触屏更新；此处只观察公开的按下反馈。
+          expect(activeGesture() === 'poke', '第一指未产生有效按下反馈');
+          pointer('pointerdown', 8202, blank, false); await expectIdleAfterHold();
+          pointer('pointerup', 8202, blank, false); pointer('pointerup', 8201, face); await frames();
+        }],
+        ['先透明角、后脸颊，整组等待时保持idle', async () => {
+          await fresh('pinch'); const face = point(FIXTURE.faces.right); const blank = blankPoint();
+          pointer('pointerdown', 8301, blank); await frames();
+          expect(activeGesture() === 'idle', '透明角被当作有效命中');
+          pointer('pointerdown', 8302, face, false); await expectIdleAfterHold();
+          pointer('pointerup', 8302, face, false); pointer('pointerup', 8301, blank); await frames();
+        }],
+        ['随心模式纵向触屏移动取消，不触发戳戳', async () => {
+          await fresh(); const start = point(FIXTURE.belly);
+          const end = { x: start.x + 1, y: start.y + FIXTURE.scrollTravelPx };
+          pointer('pointerdown', 8401, start); pointer('pointermove', 8401, end); await frames();
+          expect(activeGesture() === 'idle', '纵向移动未交还滚动');
+          pointer('pointercancel', 8401, end); pointer('pointerup', 8401, end);
+          await wait(Math.max(SETTINGS.doubleTapMaximumMs, SETTINGS.longPressMs) + FIXTURE.idleMarginMs); await frames();
+          expect(activeGesture() === 'idle' && totalGesture() === 'idle', '取消后触发戳戳或迟到反馈');
+          expect(!mount.querySelector('.mascot-reply')?.textContent.trim(), '取消后出现意外回复');
+        }],
+        ['显式拖动可开始、松手归位并正常结束反馈', async () => {
+          await fresh('drag'); const start = point(FIXTURE.belly);
+          const end = { x: start.x + FIXTURE.dragTravelPx.x, y: start.y + FIXTURE.dragTravelPx.y };
+          pointer('pointerdown', 8501, start, true, 'mouse');
+          pointer('pointermove', 8501, end, true, 'mouse'); await frames();
+          expect(activeGesture() === 'drag', `未开始显式拖动：${activeGesture()}`);
+          pointer('pointerup', 8501, end, true, 'mouse'); await frames();
+          expect(activeGesture() === 'idle', '松手后仍然抓取团子');
+          expect(totalGesture() === 'drag', '正常结束未产生拖动反馈');
+          await wait(SETTINGS.reactionResetMs + FIXTURE.idleMarginMs); await frames();
+          expect(totalGesture() === 'idle', '拖动反馈到时没有结束');
+        }],
+      ];
+
+      /** 按钮逐项运行，失败仍继续；机器与人工均可读取公开结果属性。 */
+      runButton.addEventListener('click', async () => {
+        if (running) return; running = true; runButton.disabled = true;
+        results.replaceChildren(); status.dataset.status = 'running'; status.textContent = '运行中…';
+        let passed = 0;
+        for (const [label, execute] of cases) {
+          const row = document.createElement('li'); row.dataset.result = 'running'; row.textContent = `运行：${label}`; results.append(row);
+          try { await execute(); passed++; row.dataset.result = 'pass'; row.textContent = `PASS · ${label}`; }
+          catch (error) { row.dataset.result = 'fail'; row.textContent = `FAIL · ${label}：${error instanceof Error ? error.message : String(error)}`; }
+        }
+        status.dataset.status = passed === cases.length ? 'passed' : 'failed';
+        status.textContent = `${passed === cases.length ? 'PASS' : 'FAIL'} · ${passed}/${cases.length} 项通过`;
+        running = false; runButton.disabled = false;
+      });
+      await fresh();
+    </script>
+  </body>
+</html>
