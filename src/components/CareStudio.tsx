@@ -4,7 +4,7 @@ import { SETTINGS } from '../config';
 import { CARE_KINDS, CARE_SETTINGS, FEEDBACK_OPTIONS, MINDFUL_STEPS, MOVEMENT_STEPS, SOUND_OPTIONS } from '../care-content';
 import { createCareAudio } from '../lib/audio';
 import type { CareAudioController, CareSound } from '../lib/audio';
-import type { CareFeedback, CareKind, CareSession, MoodScore } from '../types';
+import type { CareFeedback, PracticeKind, CareSession, MoodScore } from '../types';
 import '../care.css';
 
 /** 首页仅呈现呼吸面板；完整关怀页复用同一套实际计时与反馈逻辑。 */
@@ -14,7 +14,7 @@ interface CareStudioProps {
   entryId?: string | null;
   onComplete: (session: CareSession) => Promise<void>;
   onNotice: (message: string) => void;
-  initialKind?: CareKind;
+  initialKind?: PracticeKind;
 }
 type PracticeStatus = 'idle' | 'running' | 'paused' | 'finished';
 const KIND_ICONS = { breathing: Wind, mindfulness: Leaf, music: Headphones, movement: Footprints };
@@ -27,7 +27,7 @@ function formatTime(seconds: number) {
 
 export default function CareStudio({ compact = false, mood, entryId = null, onComplete, onNotice, initialKind = 'breathing' }: CareStudioProps) {
   // 可修改选项来自集中内容配置；引用保存真实练习时间、用户起始情绪与唯一记录。
-  const [kind, setKind] = useState<CareKind>(compact ? 'breathing' : initialKind);
+  const [kind, setKind] = useState<PracticeKind>(compact ? 'breathing' : initialKind);
   const [minutes, setMinutes] = useState(!compact && initialKind === 'music' ? CARE_SETTINGS.musicMinutes[0] : SETTINGS.breathingMinutes[0]);
   const [movement, setMovement] = useState<'stretch' | 'walk'>('stretch');
   const [sound, setSound] = useState<CareSound>('chords');
@@ -165,7 +165,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
     soundRef.current?.pause();
     changeStatus('paused');
   };
-  const selectKind = (next: CareKind) => {
+  const selectKind = (next: PracticeKind) => {
     if (locked) return;
     reset();
     setKind(next);

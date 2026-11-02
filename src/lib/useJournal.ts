@@ -56,7 +56,8 @@ export function useJournal(session: AuthSession, onNotice: (message: string) => 
   async function saveCare(careSession: CareSession) {
     if (session.user && !session.user.emailVerified) throw new Error('练习已结束。验证邮箱后才能保存到云端；你仍可继续体验。');
     if (cloud && uid) { setSync('saving'); try { await repository.saveCareSession(uid, careSession); setSync('synced'); } catch (error) { setSync('error'); throw error; } }
-    else setGuestSessions(sessions => [careSession, ...sessions]);
+    // 失败后重试复用原记录编号，访客内存也保持幂等，避免重复计数。
+    else setGuestSessions(sessions => [careSession, ...sessions.filter(item => item.id !== careSession.id)]);
   }
 
   /** 迁移必须由用户主动触发；逐条成功后移出待迁移列表，失败可安全重试。 */

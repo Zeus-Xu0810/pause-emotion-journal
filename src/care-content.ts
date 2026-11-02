@@ -1,4 +1,4 @@
-import type { CareFeedback, CareKind } from './types';
+import type { CareFeedback, PracticeKind } from './types';
 
 /** 关怀内容与可调整的输入设置集中维护；呼吸节奏统一读取主 config。 */
 export const CARE_SETTINGS = {
@@ -22,7 +22,7 @@ export const AUDIO_SETTINGS = {
 };
 
 /** 四种练习的真实操作入口，不将任何练习承诺为治疗。 */
-export const CARE_KINDS: { kind: CareKind; label: string; title: string; intro: string }[] = [
+export const CARE_KINDS: { kind: PracticeKind; label: string; title: string; intro: string }[] = [
   { kind: 'breathing', label: '呼吸', title: '缓缓呼吸', intro: '跟着自己的节奏。' },
   { kind: 'mindfulness', label: '正念', title: '回到此刻', intro: '给注意力一点空间。' },
   { kind: 'music', label: '声音', title: '听一会儿', intro: '选一个喜欢的声音。' },

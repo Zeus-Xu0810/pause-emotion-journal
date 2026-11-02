@@ -15,7 +15,9 @@ export interface MoodEntry {
 }
 
 /** 自我关怀类型与完成反馈在各页面保持一致。 */
-export type CareKind = 'breathing' | 'mindfulness' | 'music' | 'movement';
+export type CareKind = 'breathing' | 'mindfulness' | 'music' | 'movement' | 'play';
+/** 有固定引导的四种练习与自由玩法分开，避免给旧计时器传入未知内容。 */
+export type PracticeKind = Exclude<CareKind, 'play'>;
 export type CareFeedback = 'better' | 'same' | 'unsuitable';
 export interface CareSession {
   id: string;

@@ -51,7 +51,7 @@ export function recommendCare(feelings: string[], sessions: CareSession[]) {
     kind = kind === 'music' ? 'mindfulness' : 'music';
     reason = '上次的方法不太适合，这次换一种试试。';
   }
-  const titles: Record<CareKind, string> = { breathing: '让呼吸慢下来', mindfulness: '把注意力带回此刻', music: '听一会儿，歇一会儿', movement: '松一松肩，动一动身体' };
+  const titles: Record<CareKind, string> = { breathing: '让呼吸慢下来', mindfulness: '把注意力带回此刻', music: '听一会儿，歇一会儿', movement: '松一松肩，动一动身体', play: '随心玩一会儿' };
   return { kind, title: titles[kind], reason };
 }
 
