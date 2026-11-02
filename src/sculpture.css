@@ -1,21 +1,42 @@
-/* 画布保持透明并独占固定体量；仅五官装置可互动，不覆盖情绪选择控件。 */
-.mood-sculpture { position: relative; width: min(100%, 380px); height: 250px; flex: 0 0 auto; margin-inline: auto; isolation: isolate; }
-.mood-sculpture-canvas { position: absolute; inset: 0; z-index: 1; cursor: pointer; touch-action: pan-y; border-radius: 45%; }
-.mood-sculpture-canvas canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 280ms ease; }
+/* 团子完全服从父舞台尺寸，顶部气泡预留空间不会挤动日记控件。 */
+.mood-sculpture { position: relative; display: grid; grid-template-rows: var(--mascot-bubble-space, 64px) minmax(0, 1fr); width: 100%; height: 100%; min-width: 0; min-height: 0; isolation: isolate; }
+.mascot-reply-space { display: flex; align-items: center; justify-content: center; padding: 2px 12px 6px; min-width: 0; pointer-events: none; z-index: 3; }
+.mascot-reply { position: relative; margin: 0; max-width: min(100%, 500px); padding: 11px 21px; color: var(--ink, #294737); background: #fffef8; border: 1px solid #e3e6da; border-radius: 19px; box-shadow: 0 4px 18px #344d3910; font-size: 18px; line-height: 1.45; text-align: center; opacity: 0; transform: translateY(5px); transition: opacity 180ms ease, transform 180ms ease; overflow-wrap: anywhere; }
+.mascot-reply::after { content: ''; position: absolute; bottom: -6px; left: calc(50% - 5px); width: 10px; height: 10px; border-right: 1px solid #e3e6da; border-bottom: 1px solid #e3e6da; background: #fffef8; transform: rotate(45deg); }
+.mascot-reply.is-visible { opacity: 1; transform: none; }
+.mascot-visual-stage { position: relative; min-width: 0; min-height: 0; container-type: size; }
+.mood-sculpture-canvas { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.mood-sculpture-canvas canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 260ms ease; }
 .mood-sculpture.is-ready .mood-sculpture-canvas canvas { opacity: 1; }
-.mood-sculpture-canvas:focus-visible { outline: 2px solid var(--focus, #7e9d88); outline-offset: -12px; }
-.mood-sculpture.is-fallback .mood-sculpture-canvas { cursor: default; }
+.mascot-touch-target { display: block; position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 32px; background: transparent; color: inherit; box-shadow: none; cursor: pointer; touch-action: pan-y pinch-zoom; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.mascot-touch-target:hover, .mascot-touch-target:active { background: transparent; transform: none; }
+.mascot-touch-target:focus-visible { outline: 2px solid var(--focus, #8aa88c); outline-offset: -8px; }
 
-/* WebGL 失败时显示静态二维陶瓷表情；不以空白或伪 3D 冒充真实渲染。 */
-.mood-sculpture-fallback { display: grid; place-items: center; position: absolute; inset: 0; pointer-events: none; }
-.mood-sculpture-static-stone { position: relative; width: 205px; height: 191px; border-radius: 48% 53% 46% 51% / 50% 47% 53% 48%; background: var(--sculpture-color, #eeefe3); border: 1px solid #d3dbd1; box-shadow: inset 13px 13px 24px #ffffff70, inset -8px -8px 21px #627c6a0c; }
-.mood-sculpture-static-stone::after { content: ''; position: absolute; width: 130px; height: 12px; border-radius: 50%; left: 38px; bottom: -15px; background: #2944340c; filter: blur(5px); }
-.mood-sculpture-static-stone i { position: absolute; top: 79px; left: 78px; width: 5px; height: 7px; border-radius: 50%; background: #33473d; }
-.mood-sculpture-static-stone i + i { left: 122px; }
-.mood-sculpture-static-stone > span { position: absolute; left: 93px; top: 107px; width: 20px; height: 1.5px; border-radius: 2px; background: #33473d; }
-.mood-sculpture-score-1 .mood-sculpture-static-stone > span,
-.mood-sculpture-score-2 .mood-sculpture-static-stone > span { height: 8px; border: 1.5px solid #33473d; border-bottom: 0; border-radius: 50% 50% 0 0; background: transparent; }
-.mood-sculpture-score-4 .mood-sculpture-static-stone > span,
-.mood-sculpture-score-5 .mood-sculpture-static-stone > span { height: 9px; border: 1.5px solid #33473d; border-top: 0; border-radius: 0 0 50% 50%; background: transparent; }
-.mood-sculpture-score-5 .mood-sculpture-static-stone > span { width: 25px; left: 90px; height: 12px; }
-@media (prefers-reduced-motion: reduce) { .mood-sculpture-canvas canvas { transition: none; } }
+/* WebGL 不可用时保留相同大眼团子与全部文字交互，不出现空白或禁用按钮。 */
+.mascot-fallback { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; padding-bottom: 10px; }
+.mascot-static-body { position: relative; width: min(72cqw, 78cqh); aspect-ratio: 1.03; border-radius: 48% 50% 46% 48%; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; box-shadow: inset 16px 15px 25px #ffffff78, inset -10px -12px 28px #80957d10; }
+.mascot-static-body::after { content: ''; position: absolute; z-index: -1; width: 70%; height: 8%; left: 15%; bottom: -8%; border-radius: 50%; background: #36564015; filter: blur(8px); }
+.mascot-static-hand, .mascot-static-foot { position: absolute; display: block; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; border-radius: 50%; z-index: -1; }
+.mascot-static-hand { top: 48%; width: 14%; height: 22%; }
+.mascot-static-hand.left { left: -9%; transform: rotate(18deg); }
+.mascot-static-hand.right { right: -9%; transform: rotate(-18deg); }
+.mascot-static-foot { bottom: -4%; width: 19%; height: 11%; z-index: 1; }
+.mascot-static-foot.left { left: 24%; }
+.mascot-static-foot.right { right: 24%; }
+.mascot-static-eye { position: absolute; display: block; top: 37%; width: 6.6%; height: 9%; border-radius: 48%; background: #33473d; }
+.mascot-static-eye.left { left: 33%; }
+.mascot-static-eye.right { right: 33%; }
+.mascot-static-eye::after { content: ''; position: absolute; top: 17%; left: 17%; width: 33%; height: 28%; border-radius: 50%; background: #fffdf5; }
+.mascot-static-cheek { position: absolute; top: 49%; width: 13%; height: 5%; border-radius: 50%; background: #dba79e; opacity: .33; }
+.mascot-static-cheek.left { left: 21%; }
+.mascot-static-cheek.right { right: 21%; }
+.mascot-static-mouth { position: absolute; left: 43%; top: 53%; width: 14%; height: 10%; border: 2px solid #33473d; border-top: 0; border-radius: 0 0 50% 50%; }
+.mascot-face-soft .mascot-static-mouth { top: 55%; height: 5%; width: 12%; left: 44%; }
+.mascot-face-curious .mascot-static-mouth { width: 7%; left: 46.5%; height: 8%; border-top: 2px solid #33473d; border-radius: 50%; }
+.mascot-face-wink .mascot-static-eye.left { transform: scaleY(.2); }
+.mascot-face-sleepy .mascot-static-eye { transform: scaleY(.25); }
+.mascot-face-sleepy .mascot-static-mouth { top: 57%; height: 0; border-bottom: 0; border-top: 2px solid #33473d; }
+.mascot-face-shy .mascot-static-cheek { opacity: .55; }
+@media (max-width: 640px) { .mascot-reply { padding: 9px 16px; max-width: 100%; font-size: 16px; border-radius: 16px; } }
+@media (min-width: 2100px) { .mascot-reply { font-size: 22px; padding: 13px 24px; } }
+@media (prefers-reduced-motion: reduce) { .mood-sculpture-canvas canvas, .mascot-reply { transition: none; transform: none; } }
