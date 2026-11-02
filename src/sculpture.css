@@ -1,0 +1,21 @@
+/* 画布保持透明并独占固定体量；仅五官装置可互动，不覆盖情绪选择控件。 */
+.mood-sculpture { position: relative; width: min(100%, 380px); height: 250px; flex: 0 0 auto; margin-inline: auto; isolation: isolate; }
+.mood-sculpture-canvas { position: absolute; inset: 0; z-index: 1; cursor: pointer; touch-action: pan-y; border-radius: 45%; }
+.mood-sculpture-canvas canvas { display: block; width: 100%; height: 100%; opacity: 0; transition: opacity 280ms ease; }
+.mood-sculpture.is-ready .mood-sculpture-canvas canvas { opacity: 1; }
+.mood-sculpture-canvas:focus-visible { outline: 2px solid var(--focus, #7e9d88); outline-offset: -12px; }
+.mood-sculpture.is-fallback .mood-sculpture-canvas { cursor: default; }
+
+/* WebGL 失败时显示静态二维陶瓷表情；不以空白或伪 3D 冒充真实渲染。 */
+.mood-sculpture-fallback { display: grid; place-items: center; position: absolute; inset: 0; pointer-events: none; }
+.mood-sculpture-static-stone { position: relative; width: 205px; height: 191px; border-radius: 48% 53% 46% 51% / 50% 47% 53% 48%; background: var(--sculpture-color, #eeefe3); border: 1px solid #d3dbd1; box-shadow: inset 13px 13px 24px #ffffff70, inset -8px -8px 21px #627c6a0c; }
+.mood-sculpture-static-stone::after { content: ''; position: absolute; width: 130px; height: 12px; border-radius: 50%; left: 38px; bottom: -15px; background: #2944340c; filter: blur(5px); }
+.mood-sculpture-static-stone i { position: absolute; top: 79px; left: 78px; width: 5px; height: 7px; border-radius: 50%; background: #33473d; }
+.mood-sculpture-static-stone i + i { left: 122px; }
+.mood-sculpture-static-stone > span { position: absolute; left: 93px; top: 107px; width: 20px; height: 1.5px; border-radius: 2px; background: #33473d; }
+.mood-sculpture-score-1 .mood-sculpture-static-stone > span,
+.mood-sculpture-score-2 .mood-sculpture-static-stone > span { height: 8px; border: 1.5px solid #33473d; border-bottom: 0; border-radius: 50% 50% 0 0; background: transparent; }
+.mood-sculpture-score-4 .mood-sculpture-static-stone > span,
+.mood-sculpture-score-5 .mood-sculpture-static-stone > span { height: 9px; border: 1.5px solid #33473d; border-top: 0; border-radius: 0 0 50% 50%; background: transparent; }
+.mood-sculpture-score-5 .mood-sculpture-static-stone > span { width: 25px; left: 90px; height: 12px; }
+@media (prefers-reduced-motion: reduce) { .mood-sculpture-canvas canvas { transition: none; } }

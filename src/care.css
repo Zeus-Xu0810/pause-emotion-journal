@@ -1,156 +1,113 @@
-/* 关怀工作室仅使用 cs 前缀；颜色与字体继承应用的集中设计变量。 */
-.cs-studio { min-width: 0; }
-.cs-full { max-width: 1060px; margin: 0 auto; }
-.cs-kind-tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); margin-bottom: 26px; }
-.cs-kind-tabs button { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 58px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--ink-soft); font-size: 14px; }
-.cs-kind-tabs button:hover:not(:disabled) { background: #edf2e9; color: var(--ink); }
-.cs-kind-tabs button.is-active { border-bottom-color: var(--green); color: var(--ink); font-weight: 600; }
-.cs-full .cs-practice { display: grid; grid-template-columns: minmax(250px, .9fr) minmax(0, 1.1fr); border: 1px solid var(--line); border-radius: var(--radius); background: white; overflow: hidden; }
-.cs-intro { padding: 32px; }
-.cs-full .cs-intro { grid-column: 1; grid-row: 1; padding: 36px 32px 0; }
-.cs-kicker { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin: 0 0 22px; color: var(--ink-soft); font-size: 10px; line-height: 1.7; }
-.cs-intro h2 { font-family: var(--font-serif); font-weight: 400; font-size: 27px; line-height: 1.6; margin: 0 0 12px; }
-.cs-description { margin: 0; font-size: 13px; line-height: 1.9; color: var(--ink-soft); max-width: 340px; }
-.cs-full .cs-session-footer { grid-column: 2; grid-row: 1 / span 2; padding: 48px 34px 34px; border-left: 1px solid var(--line); background: #f7f9f4; display: flex; flex-direction: column; justify-content: center; }
+/* 关怀工作室是一处居中练习空间，不再使用左右卡片与重复长说明。 */
+.cs-studio { min-width: 0; max-width: 590px; margin: 0 auto; }
+.cs-kind-tabs { display: flex; align-items: center; justify-content: center; gap: 6px; width: max-content; max-width: 100%; padding: 4px; margin: 0 auto 28px; border-radius: 28px; background: #edf3ef; }
+.cs-kind-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 99px; min-height: 42px; padding: 10px 17px; border: 0; border-radius: 24px; background: transparent; color: var(--ink-soft); font-size: 14px; }
+.cs-kind-tabs button svg { width: 16px; height: 16px; stroke-width: 1.6; }
+.cs-kind-tabs button:hover:not(:disabled) { color: var(--ink); background: #e2ede5; }
+.cs-kind-tabs button.is-active { background: white; color: var(--ink); box-shadow: 0 1px 8px #233d3506; }
+.cs-practice { padding-top: 8px; }
+.cs-intro { text-align: center; }
+.cs-intro h2 { font-size: 26px; font-weight: 400; margin: 0 0 12px; line-height: 1.6; }
+.cs-kicker { display: none; }
+.cs-description { max-width: 360px; margin: 0 auto; color: var(--ink-soft); font-size: 13px; line-height: 1.9; }
+.cs-session-footer { max-width: 350px; margin: 0 auto; }
 
-/* 呼吸圆环的比例来自真实计时相位，暂停与后台恢复不会偏离阶段。 */
-.cs-breath-stage { display: grid; place-items: center; position: relative; height: 290px; min-width: 0; overflow: hidden; }
-.cs-full .cs-breath-stage { grid-column: 1; grid-row: 2; margin: 4px 20px 22px; }
-.cs-breath-track { position: absolute; width: 214px; height: 214px; border: 1px solid #d7e0ce; border-radius: 50%; pointer-events: none; }
-.cs-breath-track::before { content: ''; position: absolute; inset: 16px; border: 1px dashed #c7d5bf; border-radius: 50%; }
-.cs-breath-track span { width: 5px; height: 5px; border-radius: 50%; position: absolute; top: 17px; left: 42px; background: #a9b99c; }
-.cs-breath-track span + span { top: auto; left: auto; right: 42px; bottom: 17px; }
-.cs-breath-circle { display: grid; place-items: center; width: 160px; height: 160px; border: 1px solid #9db58e; box-shadow: inset 0 0 0 11px #e8efde; background: #dce8ce; border-radius: 50%; transition: none; }
-.cs-breath-center { display: flex; align-items: center; justify-content: center; flex-direction: column; white-space: nowrap; gap: 10px; text-align: center; }
-.cs-breath-center strong { font-size: 18px; font-family: var(--font-serif); font-weight: 400; }
-.cs-breath-center small { font-size: 11px; color: var(--ink-soft); }
-.cs-duration { display: flex; gap: 8px; margin-bottom: 28px; }
-.cs-duration button { flex: 1; min-height: 40px; padding: 9px 7px; border: 1px solid #c8d5c0; border-radius: 4px; background: transparent; color: var(--ink-soft); font-size: 12px; }
-.cs-duration button:hover:not(:disabled) { background: #e5eddd; border-color: #9fb68e; }
-.cs-duration button.is-selected { border-color: var(--green); background: var(--green); color: white; }
-.cs-timer-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--ink-soft); font-size: 12px; }
-.cs-timer-line [role='timer'] { font-family: Georgia, serif; font-size: 25px; font-variant-numeric: tabular-nums; color: var(--ink); }
-.cs-progress { height: 2px; background: #dce5d5; overflow: hidden; margin: 15px 0 23px; }
-.cs-progress span { display: block; height: 100%; background: var(--terra); }
-.cs-controls { display: flex; gap: 8px; }
-.cs-controls .primary-button { flex: 1; }
+/* 呼吸环以细边线和轻盈的材质阴影表达节奏，文字始终稳定可读。 */
+.cs-breath-stage { display: grid; place-items: center; position: relative; height: 282px; min-width: 0; overflow: hidden; margin: 2px auto 3px; }
+.cs-breath-track { position: absolute; width: 220px; height: 220px; border: 1px solid #dce8df; border-radius: 50%; pointer-events: none; }
+.cs-breath-track::before { content: ''; position: absolute; inset: 15px; border: 1px solid #e7eee8; border-radius: 50%; }
+.cs-breath-track span { position: absolute; width: 4px; height: 4px; top: 20px; left: 40px; border-radius: 50%; background: #b2caba; }
+.cs-breath-track span + span { top: auto; left: auto; right: 40px; bottom: 20px; background: #ddc6ab; }
+.cs-breath-circle { display: grid; place-items: center; width: 160px; height: 160px; border: 1px solid #c8ddce; border-radius: 50%; background: #e0ede3; box-shadow: inset 0 3px 14px #fff9, inset 0 -10px 22px #acc9b532, 0 12px 35px #88ab9412; }
+.cs-breath-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; white-space: nowrap; }
+.cs-breath-center strong { font-size: 19px; font-weight: 400; }
+.cs-breath-center small { font-size: 12px; color: var(--ink-soft); }
+/* 将计时更新插值为连续缩放，文本反向缩放以保持字号稳定。 */
+.cs-breath-circle, .cs-breath-center { transition: transform 120ms linear; will-change: transform; }
+.cs-duration { display: flex; align-items: center; gap: 7px; margin-bottom: 22px; }
+.cs-duration button { flex: 1; min-height: 40px; padding: 8px 7px; border: 1px solid var(--line); border-radius: 23px; background: transparent; color: var(--ink-soft); font-size: 13px; }
+.cs-duration button:hover:not(:disabled) { background: #e9f2eb; border-color: #b7d0bf; }
+.cs-duration button.is-selected { border-color: #b9d1c1; background: var(--mint); color: var(--ink); }
+.cs-timer-line { display: flex; align-items: center; justify-content: space-between; gap: 15px; color: var(--ink-soft); font-size: 12px; }
+.cs-timer-line [role='timer'] { font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cs-progress { height: 2px; background: #e3ede5; overflow: hidden; margin: 13px 0 24px; border-radius: 2px; }
+.cs-progress span { display: block; height: 100%; background: #a5c5ad; }
+.cs-controls { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.cs-controls .primary-button { min-width: 183px; }
 .cs-reset { width: 44px; padding-inline: 12px; }
-.cs-exit-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 7px; }
-.cs-text-button { display: inline-flex; justify-content: center; align-items: center; gap: 4px; padding: 8px 0; border: 0; min-height: 40px; background: transparent; font-size: 11px; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 4px; }
-.cs-text-button:hover { color: var(--terra); }
-.cs-safety { margin: 20px 0 0; color: var(--muted); font-size: 11px; line-height: 1.9; }
+.cs-exit-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.cs-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 39px; padding: 7px 0; border: 0; background: transparent; color: var(--ink-soft); font-size: 12px; }
+.cs-text-button:hover { color: var(--ink); }
+.cs-safety { color: var(--ink-soft); font-size: 12px; line-height: 1.9; margin: 22px 0 0; }
 
-/* 正念和活动以清晰的当前步骤呈现，用户无需持续阅读长篇说明。 */
-.cs-guidance { grid-column: 1; grid-row: 2; padding: 35px 32px; display: flex; flex-direction: column; gap: 24px; min-height: 290px; }
-.cs-step-index { font-family: Georgia, serif; color: var(--muted); font-size: 13px; }
-.cs-step-index span:first-child { font-size: 34px; font-weight: 400; color: var(--terra); }
-.cs-guidance-copy h3 { margin: 0 0 15px; font-family: var(--font-serif); font-size: 22px; font-weight: 400; }
-.cs-guidance-copy p { color: var(--ink-soft); font-size: 14px; line-height: 2; margin: 0; }
-.cs-guidance-copy small { display: block; margin-top: 18px; font-size: 12px; color: var(--muted); line-height: 1.9; }
-.cs-step-progress { display: flex; gap: 6px; margin-top: auto; }
-.cs-step-progress span { flex: 1; height: 3px; background: #e4e9df; }
-.cs-step-progress span.is-active { background: #9eb28d; }
+/* 说明按需展开，保留必要的练习提示而不放大为常驻段落。 */
+.cs-practice details, .cs-info { max-width: 350px; margin: 22px auto 0; color: var(--ink-soft); font-size: 12px; }
+.cs-practice details summary, .cs-info summary { width: max-content; margin: 0 auto; min-height: 36px; cursor: pointer; color: var(--ink-soft); }
+.cs-practice details p, .cs-info p { font-size: 12px; line-height: 1.9; margin: 8px 0; }
 
-/* 声景操作保持真实可见：选择、播放、暂停与音量均独立可控。 */
-.cs-sound-stage { grid-column: 1; grid-row: 2; padding: 8px 32px 32px; }
-.cs-sound-art { display: flex; height: 104px; align-items: center; justify-content: center; gap: 5px; color: #8aa67c; }
-.cs-sound-art span { width: 3px; border-radius: 2px; background: currentColor; transform: scaleY(.65); }
-.cs-sound-art.is-playing span { animation: cs-sound-swell 2.8s ease-in-out infinite alternate; }
-.cs-sounds { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
-.cs-sounds button { display: flex; align-items: center; gap: 14px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 15px 10px; min-height: 72px; color: var(--ink-soft); }
-.cs-sounds button.is-selected { color: var(--ink); background: #f0f5e9; }
-.cs-sounds button:hover:not(:disabled) { background: #f0f5e9; }
-.cs-sounds button > span { display: flex; flex-direction: column; gap: 5px; flex: 1; }
-.cs-sounds strong { font-size: 13px; font-weight: 500; }
-.cs-sounds small { font-size: 10px; color: var(--muted); }
-.cs-volume { display: flex; align-items: center; gap: 9px; padding-top: 23px; color: var(--ink-soft); font-size: 11px; }
-.cs-volume input { accent-color: var(--green); width: 100%; min-width: 50px; height: 24px; flex: 1; cursor: pointer; }
-.cs-volume output { min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; }
-@keyframes cs-sound-swell { from { transform: scaleY(.4); } to { transform: scaleY(1); } }
+/* 正念与活动每次只呈现当前步骤，数字与短提示在同一焦点内。 */
+.cs-guidance { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 24px; min-height: 284px; max-width: 400px; margin: 0 auto 18px; text-align: center; padding: 25px 15px; }
+.cs-step-index { color: #a7b7ab; font-size: 12px; }
+.cs-step-index span:first-child { font-size: 31px; color: #b5a38a; }
+.cs-guidance-copy h3 { font-size: 24px; font-weight: 400; margin: 0 0 13px; }
+.cs-guidance-copy p { font-size: 15px; line-height: 1.9; color: var(--ink-soft); margin: 0; }
+.cs-guidance-copy small { display: block; max-width: 300px; margin: 16px auto 0; font-size: 12px; color: #85958a; line-height: 1.9; }
+.cs-step-progress { display: flex; width: 110px; gap: 5px; margin-top: 4px; }
+.cs-step-progress span { flex: 1; height: 3px; border-radius: 2px; background: #e0eae2; }
+.cs-step-progress span.is-active { background: #a8c3af; }
 
-/* 反馈只在真实练习结束后出现；保存与跳过都有明确操作状态。 */
-.cs-full .cs-finish { grid-column: 1 / -1; padding: 24px 32px 44px; border-top: 1px solid var(--line); }
-.cs-full .cs-intro:has(+ .cs-finish) { grid-column: 1 / -1; padding-bottom: 27px; }
-.cs-finish { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; }
-.cs-finish-mark { display: grid; place-items: center; width: 58px; height: 58px; border: 1px solid #cad8bc; color: var(--green); border-radius: 50%; }
-.cs-finish-time { font-size: 12px; color: var(--muted); margin: 0; }
-.cs-finish h3 { margin: 0; font-family: var(--font-serif); font-weight: 400; font-size: 23px; line-height: 1.7; }
-.cs-finish-copy { font-size: 13px; color: var(--ink-soft); margin: 0; line-height: 1.9; }
-.cs-feedback { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px 0 10px; }
-.cs-feedback button { border: 1px solid var(--line); background: transparent; border-radius: 4px; min-height: 43px; padding: 10px 15px; font-size: 12px; color: var(--ink-soft); }
-.cs-feedback button.is-selected { background: var(--green-light); border-color: #a5b99a; color: var(--ink); }
-.cs-feedback button:hover:not(:disabled) { border-color: #a5b99a; }
+/* 声景保持真实的播放、音量与选曲控制，声波只作轻微的状态提示。 */
+.cs-sound-stage { max-width: 400px; margin: 0 auto 27px; }
+.cs-sound-art { display: flex; align-items: center; justify-content: center; gap: 5px; height: 122px; color: #b0cbb7; }
+.cs-sound-art span { width: 3px; border-radius: 2px; background: currentColor; transform: scaleY(.6); }
+.cs-sound-art.is-playing span { animation: cs-sound-swell 3s ease-in-out infinite alternate; }
+.cs-sounds { display: flex; flex-direction: column; gap: 6px; }
+.cs-sounds button { display: flex; align-items: center; gap: 14px; min-height: 63px; padding: 12px 15px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--ink-soft); text-align: left; }
+.cs-sounds button.is-selected { background: #e8f1e9; color: var(--ink); }
+.cs-sounds button:hover:not(:disabled) { background: #edf4ee; }
+.cs-sounds button > span { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.cs-sounds strong { font-size: 14px; font-weight: 400; }
+.cs-sounds small { color: #829388; font-size: 11px; }
+.cs-sounds button > svg { width: 18px; height: 18px; }
+.cs-volume { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding-inline: 10px; font-size: 12px; color: var(--ink-soft); }
+.cs-volume input { accent-color: #87ac93; width: 100%; min-width: 40px; flex: 1; cursor: pointer; }
+.cs-volume output { min-width: 31px; text-align: right; font-variant-numeric: tabular-nums; }
+@keyframes cs-sound-swell { from { transform: scaleY(.4); } to { transform: scaleY(.9); } }
 
-/* 首页呼吸面板使用深墨绿，与白色记录区形成安静的视觉重心。 */
-.cs-compact { width: 100%; }
-.cs-compact .cs-intro { padding: 0; }
-.cs-compact .cs-kicker { margin-bottom: 18px; color: #c5d4bb; }
-.cs-compact .cs-intro h2 { font-size: 24px; line-height: 1.6; color: #f4f6ed; }
-.cs-compact .cs-description { color: #c6d3bf; font-size: 12px; line-height: 1.9; }
-.cs-compact .cs-breath-stage { height: 225px; margin: 4px 0 6px; }
-.cs-compact .cs-breath-track { border-color: #567452; opacity: .7; }
-.cs-compact .cs-breath-track::before { border-color: #91a27c; opacity: .6; }
-.cs-compact .cs-breath-track span { background: #a6b797; }
-.cs-compact .cs-breath-circle { background: #476443; border-color: #97ac7f; box-shadow: inset 0 0 0 11px #3a593e; color: #f4f6ed; }
-.cs-compact .cs-breath-center small { color: #c4d1b6; font-size: 10px; }
-.cs-compact .cs-duration { margin-bottom: 19px; gap: 6px; }
-.cs-compact .cs-duration button { border-color: #63805a; color: #d2ddc8; min-height: 38px; font-size: 11px; }
-.cs-compact .cs-duration button.is-selected { background: #dde6ca; color: var(--green-deep); border-color: #dde6ca; }
-.cs-compact .cs-duration button:hover:not(:disabled) { background: #516b48; }
-.cs-compact .cs-duration button.is-selected:hover:not(:disabled) { background: #d1debb; }
-.cs-compact .cs-timer-line { color: #c8d5be; font-size: 10px; }
-.cs-compact .cs-timer-line [role='timer'] { color: #e6edd9; font-size: 20px; }
-.cs-compact .cs-progress { background: #496544; margin: 12px 0 18px; }
-.cs-compact .cs-progress span { background: #d8b67b; }
-.cs-compact .primary-button { background: #eef1e2; border-color: #eef1e2; color: var(--green-deep); }
-.cs-compact .primary-button:hover:not(:disabled) { background: #d9e3c6; border-color: #d9e3c6; }
-.cs-compact .secondary-button { border-color: #68865e; color: #e4edda; }
-.cs-compact .secondary-button:hover { background: #35533b; }
-.cs-compact .cs-text-button { color: #c1d2b6; font-size: 10px; }
-.cs-compact .cs-text-button:hover { color: #f3e2bd; }
-.cs-compact .cs-safety { color: #b6c9ad; font-size: 10px; margin-top: 17px; }
-.cs-compact-meta { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid #4d6848; padding-top: 18px; margin-top: 23px; font-size: 9px; color: #c0d0b5; }
-.cs-compact .cs-finish { padding: 27px 0 0; gap: 14px; min-height: 365px; justify-content: center; }
-.cs-compact .cs-finish-mark { border-color: #718b62; color: #d4e1bd; }
-.cs-compact .cs-finish h3 { font-size: 20px; }
-.cs-compact .cs-finish-time, .cs-compact .cs-finish-copy { color: #c2d0b6; font-size: 11px; }
-.cs-compact .cs-feedback { flex-direction: column; width: 100%; }
-.cs-compact .cs-feedback button { color: #d3dfc8; border-color: #63805a; font-size: 11px; }
-.cs-compact .cs-feedback button.is-selected { background: #dce6ca; color: var(--green-deep); border-color: #dce6ca; }
+/* 完成反馈使用三个短选择，不将练习结果变成评价用户的评分。 */
+.cs-finish { display: flex; flex-direction: column; align-items: center; gap: 17px; padding: 45px 0 30px; text-align: center; }
+.cs-finish-mark { display: grid; place-items: center; width: 59px; height: 59px; border-radius: 50%; background: #e6f0e7; color: #7caa8a; margin-bottom: 5px; }
+.cs-finish-time { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.cs-finish h3 { margin: 0; font-size: 25px; font-weight: 400; }
+.cs-finish-copy { color: var(--ink-soft); font-size: 13px; margin: 0; }
+.cs-feedback { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 5px 0 7px; }
+.cs-feedback button { min-height: 43px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 24px; background: transparent; font-size: 13px; color: var(--ink-soft); }
+.cs-feedback button:hover:not(:disabled), .cs-feedback button.is-selected { background: var(--mint); border-color: #b4d0be; color: var(--ink); }
+.cs-compact-meta { display: none; }
+.cs-compact { max-width: 400px; }
 
-/* 触屏保持足够操作面积；窄屏将左右布局改为自然阅读顺序。 */
-@media (max-width: 1050px) {
-  .cs-full .cs-practice { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .cs-full .cs-intro { padding-inline: 24px; }
-  .cs-full .cs-session-footer { padding-inline: 24px; }
-  .cs-guidance, .cs-sound-stage { padding-inline: 24px; }
-  .cs-duration { gap: 6px; }
-  .cs-duration button { font-size: 11px; }
+/* 手机沿用相同的单一焦点，控制器与内容不需额外跳转。 */
+@media (max-width: 640px) {
+  .cs-kind-tabs { width: 100%; gap: 3px; padding: 4px; margin-bottom: 25px; }
+  .cs-kind-tabs button { flex: 1; min-width: 0; min-height: 41px; padding: 9px 8px; gap: 6px; font-size: 13px; }
+  .cs-kind-tabs button svg { width: 15px; height: 15px; }
+  .cs-intro h2 { font-size: 24px; }
+  .cs-description { font-size: 12px; max-width: 270px; }
+  .cs-breath-stage { height: 265px; }
+  .cs-session-footer { max-width: 310px; }
+  .cs-duration button { min-height: 42px; font-size: 13px; }
+  .cs-guidance { min-height: 268px; padding-inline: 8px; }
+  .cs-guidance-copy h3 { font-size: 23px; }
+  .cs-guidance-copy p { font-size: 14px; }
+  .cs-guidance-copy small { font-size: 12px; }
+  .cs-sound-stage { max-width: 335px; }
+  .cs-sound-art { height: 116px; }
+  .cs-feedback { gap: 6px; }
+  .cs-feedback button { font-size: 12px; padding-inline: 13px; }
+  .cs-finish { padding-block: 40px; }
 }
-@media (max-width: 760px) {
-  .cs-kind-tabs { margin-bottom: 20px; }
-  .cs-kind-tabs button { font-size: 12px; gap: 7px; min-height: 55px; }
-  .cs-kind-tabs button svg { width: 16px; height: 16px; }
-  .cs-full .cs-practice { display: flex; flex-direction: column; }
-  .cs-full .cs-intro { padding: 26px 23px 0; }
-  .cs-intro h2 { font-size: 25px; }
-  .cs-kicker { margin-bottom: 19px; font-size: 9px; }
-  .cs-description { font-size: 13px; }
-  .cs-full .cs-breath-stage { margin: 0; height: 275px; }
-  .cs-full .cs-session-footer { border-left: 0; border-top: 1px solid var(--line); padding: 26px 23px; }
-  .cs-guidance { min-height: 300px; padding: 28px 23px; gap: 22px; }
-  .cs-guidance-copy p { font-size: 13px; }
-  .cs-sound-stage { padding: 4px 23px 26px; }
-  .cs-duration button { min-height: 44px; font-size: 12px; }
-  .cs-exit-controls .cs-text-button { min-height: 44px; font-size: 12px; }
-  .cs-safety { font-size: 12px; }
-  .cs-compact .cs-breath-stage { height: 238px; }
-  .cs-compact .cs-duration button { min-height: 44px; font-size: 12px; }
-  .cs-compact .cs-kicker { font-size: 11px; }
-  .cs-compact .cs-timer-line, .cs-compact .cs-safety, .cs-compact .cs-text-button { font-size: 11px; }
-  .cs-compact-meta { font-size: 10px; }
-  .cs-full .cs-finish { padding: 30px 23px; }
-}
+
+/* 减弱动态时呼吸指示保留文本，停止缩放与声波装饰。 */
 @media (prefers-reduced-motion: reduce) {
   .cs-breath-circle, .cs-breath-center { transform: none !important; }
   .cs-sound-art span { animation: none !important; }

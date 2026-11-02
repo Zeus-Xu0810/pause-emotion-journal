@@ -1,51 +1,63 @@
-/* 账号页面沿用全站颜色与尺寸变量，在移动端收为单栏。 */
-.account-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 50px; max-width: 1030px; margin: 0 auto 60px; align-items: start; }
-.account-form-panel { padding: 34px 38px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
-.account-heading { display: flex; gap: 16px; align-items: center; }
-.account-heading .eyebrow { font-size: 12px; margin-bottom: 10px; }
-.account-heading h2 { margin: 0; font: 500 25px/1.5 var(--font-serif); }
-.account-copy { margin: 19px 0 28px; color: var(--ink-soft); font-size: 14px; line-height: 1.9; }
-.account-tabs { display: flex; gap: 25px; border-bottom: 1px solid var(--line); margin: 24px 0; }
-.account-tabs button { background: transparent; padding: 12px 0; border: 0; border-bottom: 2px solid transparent; font-size: 14px; color: var(--muted); }
-.account-tabs button.is-active { color: var(--green); border-bottom-color: var(--green); }
+/* 账户页面只保留一列，圆体、留白和原生表单构成安静的登录入口。 */
+.account-layout, .account-layout.is-minimal { display: block; max-width: 410px; margin: 0 auto 35px; }
+.account-form-panel { min-width: 0; padding: 8px 0 25px; }
+.account-heading { display: flex; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.account-heading > svg { width: 22px; height: 22px; color: #8aab97; }
+.account-heading h2 { margin: 0; font-size: 27px; font-weight: 400; line-height: 1.6; }
+.account-heading .eyebrow { margin-bottom: 8px; }
+.account-copy { margin: 14px 0 26px; color: var(--ink-soft); font-size: 13px; line-height: 1.9; text-align: center; }
+.account-note { display: none; }
+.account-tabs { display: flex; justify-content: center; gap: 5px; width: max-content; margin: 27px auto; padding: 4px; border-radius: 25px; background: #ecf3ee; }
+.account-tabs button { min-width: 117px; min-height: 40px; padding: 9px 20px; border: 0; border-radius: 22px; background: transparent; font-size: 14px; color: var(--ink-soft); }
+.account-tabs button.is-active { background: white; color: var(--ink); box-shadow: 0 1px 7px #233d3506; }
 
-/* 表单状态保持清楚的标签、对比度和真实的忙碌/错误反馈。 */
+/* 表单用44px以上目标，错误提示保留实际原因而不打断输入。 */
 .account-form { display: flex; flex-direction: column; gap: 10px; }
-.account-form > label { color: var(--ink-soft); font-size: 14px; margin-top: 6px; }
-.account-form input:not([type="checkbox"]) { width: 100%; min-width: 0; min-height: 45px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); padding: 11px 13px; font-size: 14px; color: var(--ink); }
-.account-form input::placeholder { color: var(--muted); font-size: 14px; }
-.account-form .account-remember { display: flex; gap: 8px; align-items: center; margin: 8px 0 7px; font-size: 14px; cursor: pointer; }
+.account-form > label { color: var(--ink-soft); font-size: 13px; margin-top: 5px; }
+.account-form input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 47px; padding: 12px 14px; border: 1px solid #dbe5dd; border-radius: 7px; background: #fff9; color: var(--ink); font-size: 14px; }
+.account-form input:not([type='checkbox']):focus { border-color: #a0bda9; background: white; }
+.account-form input::placeholder { font-size: 13px; color: #91a095; }
+.account-form .account-remember { display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 7px 0; cursor: pointer; font-size: 12px; }
 .account-remember input { accent-color: var(--green); width: 15px; height: 15px; margin: 0; }
-.account-primary, .account-secondary { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 16px; border: 1px solid var(--green); border-radius: var(--radius); font-size: 14px; }
-.account-primary { background: var(--green); color: #fff; }
-.account-primary:hover:not(:disabled) { background: var(--green-deep); }
-.account-secondary { background: transparent; border-color: var(--line); color: var(--ink); }
-.account-secondary:hover:not(:disabled) { background: var(--green-light); }
-.account-submit { justify-content: space-between; margin-top: 7px; padding: 13px 16px; }
-.account-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; padding: 10px 0; background: none; color: var(--ink-soft); font-size: 14px; text-decoration: underline; text-underline-offset: 4px; }
-.account-reset-link { align-self: center; }
-.account-message { font-size: 14px; line-height: 1.8; padding: 12px 14px; background: var(--green-light); border-radius: var(--radius); margin: 19px 0 0; overflow-wrap: anywhere; }
-.account-message.is-error { background: #fbefeb; color: #88432e; }
-.account-unavailable { padding: 14px 16px; margin: 0 0 18px; background: #f7f2e5; color: #766139; border: 1px solid #eadfc7; border-radius: var(--radius); }
-.account-unavailable strong, .account-verification strong { font-size: 14px; font-weight: 600; }
-.account-unavailable p, .account-verification p { margin: 7px 0 0; font-size: 14px; line-height: 1.9; }
-.account-email { display: flex; gap: 8px; align-items: center; margin: 25px 0; font-size: 14px; color: var(--ink-soft); overflow-wrap: anywhere; }
-.account-verification { display: flex; align-items: flex-start; gap: 11px; margin: 23px 0; padding: 15px; background: #f7f2e5; border-radius: var(--radius); }
-.account-verification svg { flex-shrink: 0; margin-top: 1px; }
-.account-verification.is-verified { background: var(--green-light); }
-.account-actions { display: flex; align-items: center; gap: 18px; justify-content: space-between; flex-wrap: wrap; margin: 18px 0 9px; }
-.account-inline { display: flex; gap: 10px; }
-.account-inline .account-secondary { flex-shrink: 0; }
-.account-divider { height: 1px; background: var(--line); margin: 27px 0 10px; }
-.account-reset-heading h3 { margin: 0; font: 500 20px var(--font-serif); }
-.account-reset-heading p { font-size: 14px; line-height: 1.8; color: var(--ink-soft); }
+.account-primary, .account-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 11px 20px; border: 1px solid var(--green-deep); border-radius: 24px; font-size: 14px; }
+.account-primary { background: var(--green-deep); color: white; }
+.account-primary:hover:not(:disabled) { background: #365b4b; border-color: #365b4b; }
+.account-secondary { background: transparent; border-color: #d0dfd4; color: var(--ink); }
+.account-secondary:hover:not(:disabled) { background: var(--mint); }
+.account-submit { margin-top: 9px; }
+.account-submit svg { width: 15px; height: 15px; }
+.account-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 0; border: 0; background: none; color: var(--ink-soft); font-size: 13px; }
+.account-text-button:hover { color: var(--ink); }
+.account-reset-link { align-self: center; margin-top: 3px; }
+.account-message { padding: 12px 15px; margin: 18px 0 0; border-radius: 6px; background: var(--green-light); color: #597a63; font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
+.account-message.is-error { background: #f7ebe5; color: var(--danger); }
+.account-unavailable { padding: 13px 15px; margin-bottom: 19px; border-radius: 6px; background: #f2ecdf; color: #877452; }
+.account-unavailable strong, .account-verification strong { font-size: 13px; font-weight: 400; }
+.account-unavailable p, .account-verification p { margin: 6px 0 0; font-size: 12px; line-height: 1.9; }
 
-/* 隐私说明保持轻量的杂志式排版，不将技术设置带入用户流程。 */
-.account-note { padding: 34px 8px; }
-.account-note-number { color: var(--muted); font-size: 12px; }
-.account-note h3 { font: 500 29px/1.8 var(--font-serif); margin: 28px 0 22px; }
-.account-note p { color: var(--ink-soft); font-size: 14px; line-height: 2.1; }
-.account-note-line { width: 34px; border-top: 1px solid #b4c3af; margin: 28px 0; }
-.account-note-foot { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 31px; }
-@media (max-width: 1000px) { .account-layout { grid-template-columns: 1fr; gap: 10px; max-width: 600px; } .account-note { padding: 20px 8px; } .account-note h3 br { display: none; } .account-note h3 { font-size: 24px; margin: 18px 0; } }
-@media (max-width: 520px) { .account-form-panel { padding: 25px 22px; } .account-heading h2 { font-size: 23px; } .account-layout { margin-bottom: 25px; } .account-inline { flex-wrap: wrap; } .account-form input:not([type="checkbox"]) { font-size: 16px; } }
+/* 已登录账户的修改资料、验证和密码操作集中在可折叠设置中。 */
+.account-email { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px 0; color: var(--ink-soft); font-size: 14px; overflow-wrap: anywhere; }
+.account-verification { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; margin: 19px 0; border-radius: 6px; background: #f2ecdf; color: #877452; }
+.account-verification > svg { flex-shrink: 0; margin-top: 2px; }
+.account-verification.is-verified { background: var(--green-light); color: #607d67; }
+.account-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+.account-inline { display: flex; align-items: center; gap: 10px; }
+.account-inline .account-secondary { flex-shrink: 0; }
+.account-divider { height: 1px; background: var(--line); margin: 25px 0 9px; }
+.account-reset-heading h3 { font-size: 22px; margin: 0 0 8px; }
+.account-reset-heading p { font-size: 13px; line-height: 1.9; color: var(--ink-soft); margin: 0 0 12px; }
+.account-settings { border-top: 1px solid var(--line); margin-top: 27px; }
+.account-settings-body { padding: 14px 0 0; }
+.account-settings-body > p { font-size: 13px; color: var(--ink-soft); line-height: 1.9; }
+
+/* 手机输入使用16px，避免聚焦邮箱或密码时触发系统页面缩放。 */
+@media (max-width: 640px) {
+  .account-layout { margin-bottom: 25px; padding: 0 4px; }
+  .account-heading h2 { font-size: 25px; }
+  .account-form input:not([type='checkbox']) { font-size: 16px; }
+  .account-form input::placeholder { font-size: 13px; }
+  .account-inline { flex-wrap: wrap; }
+  .account-inline .account-secondary { margin-left: auto; }
+  .account-primary, .account-secondary { font-size: 13px; }
+  .account-actions { gap: 9px; }
+}

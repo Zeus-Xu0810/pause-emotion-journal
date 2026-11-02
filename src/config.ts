@@ -19,11 +19,11 @@ export const SETTINGS = {
 
 /** 天气颜色仅表达不同状态，不为情绪贴上好坏标签。 */
 export const MOODS: { score: MoodScore; label: string; weather: string; color: string; hint: string }[] = [
-  { score: 1, label: '很低落', weather: '雨天', color: '#7d93a5', hint: '有些日子，心里也会下雨。' },
-  { score: 2, label: '有点低落', weather: '阴天', color: '#a49aaf', hint: '不必急着把乌云赶走。' },
-  { score: 3, label: '平平静静', weather: '多云', color: '#8eaa91', hint: '就这样待一会儿，也很好。' },
-  { score: 4, label: '还不错', weather: '晴间多云', color: '#c49a54', hint: '留住生活里这一点亮色。' },
-  { score: 5, label: '很愉快', weather: '晴天', color: '#d09a48', hint: '把这份轻快，记在今天。' },
+  { score: 1, label: '低落', weather: '雨天', color: '#9baec8', hint: '有些日子，心里也会下雨。' },
+  { score: 2, label: '低迷', weather: '阴天', color: '#b8b0c5', hint: '不必急着把乌云赶走。' },
+  { score: 3, label: '平静', weather: '多云', color: '#99bbaa', hint: '就这样待一会儿，也很好。' },
+  { score: 4, label: '轻快', weather: '晴间多云', color: '#d4bf8c', hint: '留住生活里这一点亮色。' },
+  { score: 5, label: '愉悦', weather: '晴天', color: '#dfad86', hint: '把这份轻快，记在今天。' },
 ];
 export const FEELINGS = ['焦虑', '疲惫', '烦躁', '委屈', '孤独', '平静', '满足', '期待'];
 export const CONTEXTS = ['学业', '工作', '关系', '社交', '睡眠', '身体', '独处', '日常小事'];

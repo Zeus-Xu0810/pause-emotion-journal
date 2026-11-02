@@ -2,6 +2,10 @@
 
 面向学业、职场与社交压力的情绪日记和日常关怀工具。
 
+界面采用本地圆体、留白和可互动的 Three.js 情绪小石。首页只保留情绪选择与保存，文字、标签和补记按需展开；日记详情、回顾统计和账号说明均采用渐进呈现。
+
+中文圆体来自 [ChillRoundF](https://github.com/Warren2060/ChillRound)，按 OFL 1.1 使用；修改后内部命名为 Pause Round，授权原文保留在 `public/fonts/OFL.txt`。界面子集优先加载，完整字库为个人日记提供后备。支持减少动态偏好，WebGL 不可用时显示静态表情。
+
 网站：[pause-emotion-journal.vercel.app](https://pause-emotion-journal.vercel.app/)
 
 ## 产品结构

@@ -1,0 +1,11 @@
+Pause Round 字体说明
+
+来源：寒蝉全圆体 ChillRoundF v3.0
+作者：ChillType
+官方仓库：https://github.com/Warren2060/ChillRound
+源文件：ChillRoundF v3.0.ttf
+源Git blob SHA-1：4f7c5af27a6ef15edadf53aec804de7d157a9181
+
+本站将源字体转换为 WOFF2，并从界面文字生成轻量子集；衍生字体的内部主名称已改为 Pause Round，避免使用原作者保留名称。
+本目录的字体以 SIL Open Font License 1.1 分发。原版权声明与完整许可见 OFL.txt。
+字体真实字重为 Regular 400，并非可变字体。

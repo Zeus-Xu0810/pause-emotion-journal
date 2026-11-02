@@ -58,7 +58,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
   const inhaling = breathPosition < SETTINGS.inhaleSeconds;
   const breathFraction = inhaling ? breathPosition / SETTINGS.inhaleSeconds : 1 - (breathPosition - SETTINGS.inhaleSeconds) / SETTINGS.exhaleSeconds;
   const breathScale = 0.78 + 0.3 * (0.5 - Math.cos(breathFraction * Math.PI) / 2);
-  const phaseText = status === 'idle' ? '慢慢来' : status === 'paused' ? '停一会儿' : status === 'finished' ? '做得很好' : inhaling ? '轻轻吸气' : '慢慢呼气';
+  const phaseText = status === 'idle' ? '慢慢来' : status === 'paused' ? '停一会儿' : status === 'finished' ? '已完成' : inhaling ? '轻轻吸气' : '慢慢呼气';
   const steps = kind === 'movement' ? MOVEMENT_STEPS[movement] : MINDFUL_STEPS;
   const stepIndex = Math.min(steps.length - 1, Math.floor(progress * steps.length));
   const currentStep = steps[stepIndex];
@@ -201,17 +201,15 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
     </div>}
     <div className="cs-practice" id={`${practiceId}-panel`} role={compact ? undefined : 'tabpanel'} aria-labelledby={compact ? undefined : `${practiceId}-${kind}`}>
       <div className="cs-intro">
-        <p className="cs-kicker"><span>{compact ? '给自己一个片刻' : 'SMALL MOMENTS, JUST FOR YOU'}</span>{compact ? <Wind size={18} /> : <span>0{CARE_KINDS.findIndex((item) => item.kind === kind) + 1} / 04</span>}</p>
         <h2>{content.title}</h2>
-        <p className="cs-description">{content.intro}</p>
       </div>
 
       {status === 'finished' ? <div className="cs-finish" aria-live="polite">
         <div className="cs-finish-mark"><Check size={27} strokeWidth={1.3} /></div>
-        <p className="cs-finish-time">你给了自己 {formatTime(elapsedSeconds)} 的时间</p>
-        <h3>{saved ? '这一刻，已经记下了' : '现在的感觉，怎么样？'}</h3>
-        {saved ? <p className="cs-finish-copy">每一种感受都值得被如实记下。</p> : <><div className="cs-feedback" role="group" aria-label="练习后的感受">{FEEDBACK_OPTIONS.map((item) => <button type="button" aria-pressed={feedback === item.value} disabled={saving} className={feedback === item.value ? 'is-selected' : ''} key={item.value} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '正在保存…' : '记录这次关怀'}<ArrowRight size={14} /></button></>}
-        <button type="button" className="cs-text-button" disabled={saving} onClick={reset}>{saved ? '再来一个片刻' : '这次先不记录'}</button>
+        <p className="cs-finish-time">{formatTime(elapsedSeconds)}</p>
+        <h3>{saved ? '已记下' : '现在感觉怎样？'}</h3>
+        {saved ? <p className="cs-finish-copy">已保存本次反馈</p> : <><div className="cs-feedback" role="group" aria-label="练习后的感受">{FEEDBACK_OPTIONS.map((item) => <button type="button" aria-pressed={feedback === item.value} disabled={saving} className={feedback === item.value ? 'is-selected' : ''} key={item.value} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '保存中' : '记下'}<ArrowRight size={14} /></button></>}
+        <button type="button" className="cs-text-button" disabled={saving} onClick={reset}>{saved ? '再来一次' : '跳过'}</button>
       </div> : <>
         {kind === 'breathing' && <div className="cs-breath-stage">
           <div className="cs-breath-track" aria-hidden="true"><span /><span /></div>
@@ -219,22 +217,21 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
         </div>}
         {(kind === 'mindfulness' || kind === 'movement') && <div className="cs-guidance">
           <div className="cs-step-index"><span>{String(stepIndex + 1).padStart(2, '0')}</span><span> / {String(steps.length).padStart(2, '0')}</span></div>
-          <div className="cs-guidance-copy" aria-live="polite"><h3>{currentStep.title}</h3><p>{currentStep.text}</p>{kind === 'mindfulness' && <small>{MINDFUL_STEPS[stepIndex].detail}</small>}</div>
+          <div className="cs-guidance-copy" aria-live="polite"><h3>{currentStep.title}</h3><p>{currentStep.text}</p></div>
           <div className="cs-step-progress" aria-label={`第 ${stepIndex + 1} 阶段，共 ${steps.length} 阶段`}>{steps.map((step, index) => <span key={step.title} className={index <= stepIndex ? 'is-active' : ''} />)}</div>
         </div>}
-        {kind === 'music' && <div className="cs-sound-stage"><div className={`cs-sound-art ${running ? 'is-playing' : ''}`} aria-hidden="true">{Array.from({ length: 19 }, (_, index) => <span key={index} style={{ height: `${18 + Math.sin(index * 0.8) ** 2 * 58}px`, animationDelay: `${index * -0.15}s` }} />)}</div><div className="cs-sounds" role="group" aria-label="声音选择">{SOUND_OPTIONS.map((option) => <button type="button" key={option.id} aria-pressed={sound === option.id} disabled={locked} className={sound === option.id ? 'is-selected' : ''} onClick={() => setSound(option.id)}>{option.id === 'rain' ? <CloudRain size={20} /> : option.id === 'waves' ? <Wind size={20} /> : <Headphones size={20} />}<span><strong>{option.label}</strong><small>{option.subtitle}</small></span>{sound === option.id && <Check size={15} />}</button>)}</div><label className="cs-volume"><Volume2 size={16} /><span>音量</span><input type="range" min="0" max="1" step="0.01" value={volume} aria-label="声音音量" onChange={(event) => { const next = Number(event.target.value); setVolume(next); soundRef.current?.setVolume(next); }} /><output>{Math.round(volume * 100)}%</output></label></div>}
+        {kind === 'music' && <div className="cs-sound-stage"><div className={`cs-sound-art ${running ? 'is-playing' : ''}`} aria-hidden="true">{Array.from({ length: 19 }, (_, index) => <span key={index} style={{ height: `${18 + Math.sin(index * 0.8) ** 2 * 58}px`, animationDelay: `${index * -0.15}s` }} />)}</div><div className="cs-sounds" role="group" aria-label="声音选择">{SOUND_OPTIONS.map((option) => <button type="button" key={option.id} aria-pressed={sound === option.id} disabled={locked} className={sound === option.id ? 'is-selected' : ''} onClick={() => setSound(option.id)}>{option.id === 'rain' ? <CloudRain size={20} /> : option.id === 'waves' ? <Wind size={20} /> : <Headphones size={20} />}<span><strong>{option.label}</strong></span>{sound === option.id && <Check size={15} />}</button>)}</div><label className="cs-volume"><Volume2 size={16} /><span>音量</span><input type="range" min="0" max="1" step="0.01" value={volume} aria-label="声音音量" onChange={(event) => { const next = Number(event.target.value); setVolume(next); soundRef.current?.setVolume(next); }} /><output>{Math.round(volume * 100)}%</output></label></div>}
 
         <div className="cs-session-footer">
           {(kind === 'breathing' || kind === 'music') && <div className="cs-duration" role="group" aria-label="练习时长">{(kind === 'breathing' ? SETTINGS.breathingMinutes : CARE_SETTINGS.musicMinutes).map((option) => <button type="button" aria-pressed={minutes === option} className={minutes === option ? 'is-selected' : ''} key={option} disabled={locked} onClick={() => setMinutes(option)}>{option} 分钟</button>)}</div>}
           {kind === 'movement' && <div className="cs-duration" role="group" aria-label="活动方式"><button type="button" aria-pressed={movement === 'stretch'} className={movement === 'stretch' ? 'is-selected' : ''} disabled={locked} onClick={() => setMovement('stretch')}>轻伸展 · {CARE_SETTINGS.stretchMinutes} 分钟</button><button type="button" aria-pressed={movement === 'walk'} className={movement === 'walk' ? 'is-selected' : ''} disabled={locked} onClick={() => setMovement('walk')}>慢步行 · {CARE_SETTINGS.walkMinutes} 分钟</button></div>}
-          <div className="cs-timer-line"><span>{status === 'paused' ? '已暂停' : status === 'idle' ? '为自己留一点时间' : '专注当下就好'}</span><span role="timer" aria-label={`剩余 ${Math.ceil(remaining)} 秒`}>{formatTime(remaining)}</span></div>
+          <div className="cs-timer-line"><span>{status === 'paused' ? '已暂停' : status === 'running' ? '进行中' : ''}</span><span role="timer" aria-label={`剩余 ${Math.ceil(remaining)} 秒`}>{formatTime(remaining)}</span></div>
           <div className="cs-progress" role="progressbar" aria-label="练习进度" aria-valuemin={0} aria-valuemax={totalSeconds} aria-valuenow={Math.floor(elapsedSeconds)}><span style={{ width: `${progress * 100}%` }} /></div>
-          <div className="cs-controls"><button type="button" className="primary-button" onClick={running ? pause : start}>{running ? <Pause size={15} /> : <Play size={15} />}{running ? '暂停一下' : status === 'paused' ? '继续练习' : kind === 'music' ? '开始聆听' : '开始这一刻'}</button>{status !== 'idle' && <button type="button" className="secondary-button cs-reset" aria-label="重新开始练习" title="重新开始" onClick={reset}><RotateCcw size={16} /></button>}</div>
-          {status !== 'idle' && <div className="cs-exit-controls"><button type="button" className="cs-text-button" onClick={finish}>提前结束并反馈</button><button type="button" className="cs-text-button" onClick={reset}><X size={12} />退出练习</button></div>}
-          <p className="cs-safety">{kind === 'breathing' ? '按舒服的节奏呼吸，不必勉强跟上。若有头晕或不适，请停止。' : kind === 'movement' ? '量力而行。出现疼痛、眩晕或不适时，请立即停止。步行时留意周围安全。' : kind === 'music' ? '本站合成声景 · 建议低音量。声音不适合此刻，也可以换一种方式。' : '可以睁着眼，也可以随时停下。不必强求放松或清空思绪。'}</p>
+          <div className="cs-controls"><button type="button" className="primary-button" onClick={running ? pause : start}>{running ? <Pause size={15} /> : <Play size={15} />}{running ? '暂停' : status === 'paused' ? '继续' : '开始'}</button>{status !== 'idle' && <button type="button" className="secondary-button cs-reset" aria-label="重新开始练习" title="重新开始" onClick={reset}><RotateCcw size={16} /></button>}</div>
+          {status !== 'idle' && <div className="cs-exit-controls"><button type="button" className="cs-text-button" onClick={finish}>结束</button><button type="button" className="cs-text-button" onClick={reset}><X size={12} />退出</button></div>}
+          <details className="cs-safety"><summary>练习提示</summary><p>{kind === 'breathing' ? '按舒服的节奏呼吸，不必勉强跟上。若有头晕或不适，请停止。' : kind === 'movement' ? '量力而行。出现疼痛、眩晕或不适时，请立即停止。步行时留意周围安全。' : kind === 'music' ? '本站合成声景 · 建议低音量。声音不适合此刻，也可以换一种方式。' : '可以睁着眼，也可以随时停下。不必强求放松或清空思绪。'}</p></details>
         </div>
       </>}
     </div>
-    {compact && <div className="cs-compact-meta"><span>不必一下子变好</span><span>就从这一口气开始</span></div>}
   </section>;
 }
