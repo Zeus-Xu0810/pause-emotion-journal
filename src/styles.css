@@ -23,6 +23,22 @@
   --font-sans: var(--font-round);
   --font-serif: var(--font-round);
   --content-width: 1120px;
+  --home-width: 1440px;
+  --home-header-height: 88px;
+  --home-dock-space: 0px;
+  --home-height-share: .88;
+  --home-top-space: 20px;
+  --home-title-size: 52px;
+  --home-label-size: 20px;
+  --home-pill-height: 58px;
+  --home-control-height: 64px;
+  --home-stage-min: 220px;
+  --home-stage-max: 850px;
+  --home-stage-width: 980px;
+  --home-stage-gap: 18px;
+  --home-action-gap: 22px;
+  --home-footnote-gap: 14px;
+  --mascot-bubble-space: 64px;
   --radius: 8px;
   --text: 15px;
   --small: 12px;
@@ -79,46 +95,57 @@ h1, h2, h3, strong { font-weight: 400; }
 .is-error .status-dot { background: var(--danger); }
 .mobile-nav { display: none; }
 
-/* 首页只有一件事：感受此刻。雕塑、情绪和保存按自然视线纵向排列。 */
-.home-page { max-width: 760px; margin: 27px auto 0; text-align: center; }
-.home-heading { margin: 0 auto; }
-.home-date { margin: 0 0 14px; color: var(--ink-soft); font-size: 12px; }
-.home-title { margin: 0; font-size: 40px; line-height: 1.5; font-weight: 400; }
-.home-heading { animation: calm-arrive var(--enter-duration) ease-out both; }
-.home-extras { animation: calm-arrive 240ms ease-out both; }
-/* 入场仅轻移几像素，避免逐字跳动；减少动态设置会统一停用。 */
-@keyframes calm-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.home-stage { position: relative; height: 266px; max-width: 540px; margin: 2px auto 0; display: grid; place-items: center; }
+/* 首页居中放大：按可用高度分配舞台，左右留白不靠额外卡片填满。 */
+.is-home .site-header { min-height: var(--home-header-height); max-width: var(--home-width); }
+.is-home .header-brand { font-size: 28px; }
+.is-home .header-nav a { font-size: 18px; }
+.is-home .account-orb { width: 48px; height: 48px; }
+.is-home .account-orb svg { width: 20px; height: 20px; }
+.is-home .main-shell { max-width: var(--home-width); padding-inline: 32px; }
+.home-header-date { display: none; }
+.home-page { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: none; height: calc((100svh - var(--home-header-height) - var(--home-dock-space)) * var(--home-height-share)); margin: 0 auto; padding-top: var(--home-top-space); text-align: center; }
+.home-heading { flex: 0 0 auto; margin: 0 auto; animation: calm-arrive var(--enter-duration) ease-out both; }
+.home-date { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+.home-title { margin: 0; font-size: var(--home-title-size); line-height: 1.24; font-weight: 400; }
+.home-stage { position: relative; flex: 1 1 0; min-height: var(--home-stage-min); max-height: var(--home-stage-max); width: 100%; max-width: var(--home-stage-width); margin: 0 auto; display: grid; place-items: center; }
 .home-stage canvas { display: block; max-width: 100%; }
-.home-moods { display: flex; justify-content: center; align-items: center; gap: 10px; max-width: 640px; margin: 0 auto; }
-.home-mood { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 45px; padding: 10px 17px; background: transparent; border: 1px solid #dde7e0; border-radius: 28px; color: var(--ink-soft); font-size: 14px; white-space: nowrap; }
+.home-moods { flex: 0 0 auto; display: flex; justify-content: center; align-items: stretch; gap: 14px; width: max-content; max-width: 100%; margin: var(--home-stage-gap) auto 0; }
+.home-mood { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 128px; min-height: var(--home-pill-height); padding: 12px 22px; border: 1px solid #d8e5dc; border-radius: 34px; background: transparent; color: var(--ink-soft); font-size: var(--home-label-size); white-space: nowrap; }
 .home-mood:hover { border-color: #b6cdbc; background: #edf4ef; color: var(--ink); }
-.home-mood.is-selected { border-color: #b6d0bf; background: var(--mint); color: var(--ink); }
-.mood-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--mood-color, #8eaa91); }
-.home-actions { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 25px auto 0; }
-.home-save { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 157px; min-height: 47px; padding: 12px 25px; border: 1px solid var(--green-deep); border-radius: 26px; color: white; background: var(--green-deep); font-size: 15px; }
-.home-save:hover:not(:disabled) { background: #355b4b; border-color: #355b4b; box-shadow: 0 4px 15px #233d3510; }
-.home-save svg { width: 16px; height: 16px; }
-.home-save.is-saved:disabled { opacity: 1; background: var(--mint); color: var(--green); border-color: var(--mint); }
-.home-note-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 10px 11px; margin-top: 5px; border: 0; background: transparent; color: var(--ink-soft); font-size: 14px; }
+.home-mood.is-selected { border-color: #aecbb8; background: var(--mint); color: var(--ink); }
+.mood-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--mood-color, #8eaa91); }
+.home-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; gap: 24px; width: 100%; margin: var(--home-action-gap) auto 0; }
+.home-actions .home-save { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-width: 220px; min-height: var(--home-control-height); padding: 14px 30px; border: 1px solid var(--green-deep); border-radius: 36px; color: white; background: var(--green-deep); font-size: 20px; }
+.home-actions .home-save:hover:not(:disabled) { background: #355b4b; border-color: #355b4b; box-shadow: 0 4px 15px #233d3510; }
+.home-actions .home-save svg { width: 19px; height: 19px; }
+.home-actions .home-save.is-saved:disabled { opacity: 1; background: var(--mint); color: var(--green); border-color: var(--mint); }
+.home-actions .home-note-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 104px; min-height: 48px; margin: 0; padding: 10px 11px; border: 0; background: transparent; color: var(--ink-soft); font-size: 17px; }
 .home-note-toggle:hover, .home-note-toggle[aria-expanded='true'] { color: var(--ink); }
-.home-note-toggle svg { width: 15px; height: 15px; }
-.home-footnote { margin: 17px auto 0; max-width: 400px; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.home-note-toggle svg { width: 17px; height: 17px; }
+.home-footnote { flex: 0 0 auto; max-width: 440px; margin: var(--home-footnote-gap) auto 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .home-footnote a { color: var(--ink-soft); }
-.home-care-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: max-content; min-height: 44px; margin: 22px auto 0; color: var(--ink-soft); font-size: 13px; text-decoration: none; }
+.home-care-link { display: flex; align-items: center; justify-content: center; gap: 9px; width: max-content; min-height: 46px; margin: 10px auto 0; color: var(--ink-soft); font-size: 16px; text-decoration: none; }
 .home-care-link:hover { color: var(--ink); }
-.home-care-link svg { width: 15px; height: 15px; }
-.home-success { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 0; color: #537b64; font-size: 14px; }
-.home-success svg { width: 16px; height: 16px; }
-.home-week { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 24px auto 0; color: var(--ink-soft); font-size: 12px; }
+.home-care-link svg { width: 17px; height: 17px; }
+.home-success { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 18px 0 0; color: #537b64; font-size: 16px; }
+.home-success svg { width: 18px; height: 18px; }
+/* 展开补充输入后自然增长，保留正常舞台与可滚动的保存区域。 */
+.home-page:has(.home-extras), .home-page:has(.edit-banner) { height: auto; min-height: calc((100svh - var(--home-header-height) - var(--home-dock-space)) * var(--home-height-share)); }
+.home-page:has(.home-extras) .home-stage, .home-page:has(.edit-banner) .home-stage { flex: 0 0 auto; height: clamp(var(--home-stage-min), 40svh, 560px); }
+.home-page .home-extras { flex: 0 0 auto; width: 100%; max-width: 720px; }
+.home-page .edit-banner { flex: 0 0 auto; width: min(100%, 720px); }
+.home-week { display: flex; align-items: center; justify-content: center; gap: 15px; margin: 26px auto 0; color: var(--ink-soft); font-size: 13px; }
 .home-week a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
-.home-week .day-dot { width: 7px; height: 7px; }
-.home-week .week-heading h2 { font-size: 11px; color: var(--muted); margin: 0; }
+.home-week .day-dot { width: 8px; height: 8px; }
+.home-week .week-heading h2 { font-size: 12px; color: var(--muted); margin: 0; }
 .home-week .week-days { display: flex; align-items: center; gap: 13px; }
-.home-week .day-cell { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 29px; padding: 7px 0; color: #8d9b91; font-size: 10px; text-decoration: none; }
+.home-week .day-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 31px; padding: 7px 0; color: #8d9b91; font-size: 11px; text-decoration: none; }
 .home-week .day-cell.is-today { color: var(--ink); }
 .home-week .day-cell.has-entry { color: var(--ink-soft); }
 .home-week .day-cell:hover { color: var(--ink); }
+/* 入场仅轻移几像素，避免逐字跳动；减少动态设置会统一停用。 */
+.home-extras { animation: calm-arrive 240ms ease-out both; }
+@keyframes calm-arrive { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
 /* 渐进记录：只有主动选择后才展开文字、感受和情境，避免表单堆叠。 */
 .home-extras { max-width: 550px; margin: 23px auto 0; padding-top: 19px; border-top: 1px solid var(--line); text-align: left; }
@@ -332,21 +359,6 @@ details.settings-panel { padding: 0; border-top: 1px solid var(--line); }
   .header-tools { gap: 0; }
   .account-orb { width: 37px; height: 37px; }
   .main-shell { padding: 0 19px 110px; }
-  .home-page { margin-top: 22px; }
-  .home-date { margin-bottom: 12px; font-size: 11px; }
-  .home-title { font-size: 32px; line-height: 1.5; }
-  .home-stage { height: 246px; margin-top: 0; max-width: 100%; }
-  .home-moods { gap: 5px; width: 100%; }
-  .home-mood { flex: 1 1 0; min-width: 0; min-height: 43px; padding: 9px 3px; font-size: 13px; gap: 0; }
-  .home-mood .mood-dot { display: none; }
-  .home-actions { gap: 13px; margin-top: 22px; }
-  .home-save { min-width: 151px; min-height: 46px; font-size: 14px; padding-inline: 22px; }
-  .home-note-toggle { font-size: 13px; }
-  .home-footnote { max-width: 280px; font-size: 11px; margin-top: 15px; }
-  .home-care-link { font-size: 13px; margin-top: 18px; }
-  .home-extras { margin-top: 22px; padding-top: 18px; }
-  .home-note, .note-input { font-size: 16px; min-height: 104px; }
-  .home-week { gap: 12px; flex-wrap: wrap; font-size: 11px; }
   .record-time input { font-size: 16px; max-width: 100%; }
   .edit-banner { flex-wrap: wrap; }
   .mobile-nav { display: flex; align-items: center; justify-content: space-around; position: fixed; z-index: 30; bottom: calc(15px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(340px, calc(100% - 38px)); min-height: 65px; padding: 7px 12px; border: 1px solid #e2e9e3; border-radius: 22px; background: #fff; box-shadow: 0 6px 30px #233d3508; }
@@ -404,36 +416,73 @@ details.settings-panel { padding: 0; border-top: 1px solid var(--line); }
   .quiet-footer { margin-top: 38px; font-size: 10px; }
 }
 
-/* 矮桌面按高度收紧：同步缩小舞台和画布，保留完整装置与首屏保存操作。 */
-@media (min-width: 641px) and (max-height: 720px) {
-  .site-header { min-height: 68px; }
-  .home-page { margin-top: 8px; }
-  .home-date { margin-bottom: 7px; font-size: 11px; }
-  .home-title { font-size: 32px; }
-  .home-stage { height: 190px; margin-top: 0; }
-  .home-stage .mood-sculpture { height: 190px; }
-  .home-stage .mood-sculpture-static-stone { transform: scale(.76); }
-  .home-mood { min-height: 42px; padding-block: 8px; font-size: 13px; }
-  .home-note-toggle { min-height: 36px; margin-top: 0; padding-block: 7px; font-size: 13px; }
-  .home-actions { margin-top: 10px; }
-  .home-save { min-height: 44px; padding-block: 10px; font-size: 14px; }
-  .home-footnote { margin-top: 9px; }
-  .home-care-link { min-height: 36px; margin-top: 8px; }
-}
-
-/* 矮屏适当收紧雕塑舞台，保证手机键盘未开启时可以直接完成记录。 */
-@media (max-width: 640px) and (max-height: 760px) {
-  .home-page { margin-top: 14px; }
-  .home-stage { height: 204px; }
-  .home-title { font-size: 30px; }
-  .home-actions { margin-top: 18px; }
-  .home-care-link { margin-top: 12px; }
-}
 @media (max-width: 360px) {
   .main-shell { padding-inline: 14px; }
-  .home-mood { font-size: 12px; }
-  .home-title { font-size: 30px; }
   .header-brand { font-size: 21px; }
+}
+
+/* 大屏按剩余高度放大角色，不将单列改成左右展开。 */
+@media (min-width: 1800px) {
+  .is-home { --home-stage-width: 1160px; --home-top-space: 24px; }
+  .is-home .site-header { padding-inline: 48px; }
+}
+@media (min-width: 2300px) {
+  .is-home { --home-width: 1680px; --home-header-height: 96px; --home-title-size: 60px; --home-pill-height: 64px; --home-control-height: 68px; --home-stage-gap: 24px; --home-action-gap: 28px; --home-footnote-gap: 16px; --mascot-bubble-space: 76px; }
+  .home-mood { min-width: 144px; padding-inline: 27px; }
+  .home-date { font-size: 16px; }
+  .home-actions .home-save { min-width: 248px; }
+  .home-actions .home-note-toggle { font-size: 18px; }
+  .home-footnote { font-size: 14px; }
+  .home-care-link { font-size: 17px; }
+}
+/* 中等宽度只收窄横向间距，保持一行五个主要情绪。 */
+@media (min-width: 641px) and (max-width: 900px) {
+  .is-home { --home-title-size: 46px; --home-label-size: 19px; --home-pill-height: 56px; --home-control-height: 60px; }
+  .home-moods { width: min(100%, 680px); gap: 8px; }
+  .home-mood { min-width: 0; flex: 1 1 0; padding-inline: 13px; }
+}
+/* 手机日期移到顶栏，操作同行，为角色与回复留出连续的纵向空间。 */
+@media (max-width: 640px) {
+  .is-home { --home-header-height: 64px; --home-dock-space: calc(100px + env(safe-area-inset-bottom)); --home-height-share: .9; --home-top-space: 8px; --home-title-size: 36px; --home-label-size: 18px; --home-pill-height: 56px; --home-control-height: 56px; --home-stage-min: 190px; --home-stage-max: 680px; --home-stage-gap: 14px; --home-action-gap: 18px; --home-footnote-gap: 12px; --mascot-bubble-space: 60px; }
+  .is-home .site-header { position: relative; padding-inline: 22px; }
+  .is-home .header-brand { font-size: 22px; }
+  .is-home .account-orb { width: 37px; height: 37px; }
+  .is-home .account-orb svg { width: 18px; height: 18px; }
+  .is-home .main-shell { padding-inline: 18px; padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .home-header-date { display: block; position: absolute; left: 50%; transform: translateX(-50%); color: var(--ink-soft); font-size: 12px; white-space: nowrap; pointer-events: none; }
+  .home-date { display: none; }
+  .home-moods { width: 100%; gap: 5px; }
+  .home-mood { min-width: 0; flex: 1 1 0; padding: 10px 5px; }
+  .home-mood .mood-dot { display: none; }
+  .home-actions { gap: 18px; }
+  .home-actions .home-save { min-width: 176px; padding-inline: 24px; font-size: 18px; }
+  .home-actions .home-save svg { width: 17px; height: 17px; }
+  .home-actions .home-note-toggle { min-width: 92px; min-height: 48px; font-size: 16px; padding-inline: 5px; }
+  .home-actions .home-note-toggle svg { width: 16px; height: 16px; }
+  .home-footnote { max-width: 300px; font-size: 12px; }
+  .home-care-link { min-height: 42px; margin-top: 10px; font-size: 14px; }
+  .home-page .home-extras { margin-top: 20px; padding-top: 18px; }
+  .home-note, .note-input { font-size: 16px; min-height: 104px; }
+  .home-week { gap: 12px; flex-wrap: wrap; }
+}
+/* 短屏优先保留保存按钮与底部导航的安全间隔，只压缩舞台剩余高度。 */
+@media (max-width: 640px) and (max-height: 740px) {
+  .is-home { --home-stage-gap: 12px; --home-action-gap: 16px; --home-footnote-gap: 10px; --mascot-bubble-space: 50px; }
+}
+@media (min-width: 641px) and (max-height: 720px) {
+  .is-home { --home-header-height: 68px; --home-title-size: 40px; --home-label-size: 18px; --home-pill-height: 52px; --home-control-height: 56px; --home-top-space: 8px; --home-stage-min: 170px; --home-stage-gap: 12px; --home-action-gap: 14px; --home-footnote-gap: 10px; --mascot-bubble-space: 50px; --home-height-share: .9; }
+  .home-date { font-size: 12px; margin-bottom: 8px; }
+  .home-mood { padding-block: 9px; }
+  .home-actions .home-save { min-width: 196px; font-size: 18px; }
+  .home-care-link { min-height: 38px; margin-top: 8px; }
+}
+@media (max-width: 360px) {
+  .is-home .main-shell { padding-inline: 13px; }
+  .home-moods { gap: 4px; }
+  .home-mood { padding-inline: 3px; }
+  .home-actions { gap: 12px; }
+  .home-actions .home-save { min-width: 166px; }
+  .home-header-date { font-size: 11px; }
 }
 
 /* 降低动态偏好停用装饰运动，保留状态变化与清楚的文字指引。 */
