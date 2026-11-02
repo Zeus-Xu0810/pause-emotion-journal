@@ -4,7 +4,11 @@
 
 界面采用本地圆体、放大的居中主舞台和可互动的 Three.js 软糯团子。伙伴默认微笑，日记评分仍为空；轻触会随机回应，一轮 100 条用完前不重复。首页只保留情绪选择与保存，文字、标签和补记按需展开。
 
-中文圆体来自 [ChillRoundF](https://github.com/Warren2060/ChillRound)，按 OFL 1.1 使用；修改后内部命名为 Pause Round，授权原文保留在 `public/fonts/OFL.txt`。界面子集优先加载，完整字库为个人日记提供后备。支持减少动态偏好，WebGL 不可用时显示静态表情。
+团子的眼球与高光会独立追随鼠标，靠近时眯眼、远处更好奇。支持戳戳、局部捏脸、拖拽回弹、摸头、挠肚子、碰手、双击弹跳与左右轻晃；表情和身体部位会按接触位置作出不同反应。手机可预选“捏脸 / 拽拽 / 摸摸”，互动区紧贴角色，舞台空白继续用于页面滚动。键盘用 Enter / Space 互动，选择模式后按方向键操纵、松键回弹，Escape 放开。
+
+中文圆体来自 [ChillRoundF](https://github.com/Warren2060/ChillRound)，按 OFL 1.1 使用；修改后内部命名为 Pause Round，授权原文保留在 `public/fonts/OFL.txt`。界面子集优先加载，完整字库为个人日记提供后备。
+
+WebGL 不可用时切换为同样可互动的 CSS 团子；减少动态模式保留文字、表情和直接操纵反馈。所有互动均在设备端进行，不产生情绪评分或日记，也不上传指针与触摸轨迹。
 
 网站：[pause-emotion-journal.vercel.app](https://pause-emotion-journal.vercel.app/)
 
@@ -23,6 +27,8 @@
 将 `.env.example` 中的 Firebase Web SDK 配置填入仅本机使用的 `.env.local`。未配置时，网站提供明确标识的访客体验，不伪装云同步成功。
 
 品牌、分类、输入限制及呼吸参数位于 `src/config.ts`；练习文案和音频参数位于 `src/care-content.ts`；伙伴的 100 条短句与动作配置位于 `src/mascot-content.ts`；游戏配置位于 `src/play-content.ts`；视觉变量集中在各样式文件顶部。
+
+手势阈值、情境回应与模式提示集中在 `src/mascot-interaction-content.ts`。Three 场景、局部形变、纯手势识别与 DOM 输入分别独立维护。启动 Vite 后打开 `/tests/mascot-interactions.html`，点击“运行交互回归”可检查多指取消、键盘焦点和无 WebGL 状态；该测试页不作为生产构建入口。
 
 ## 数据与隐私
 
@@ -46,5 +52,7 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 
 - [JMIR 情绪记录应用用户研究](https://mhealth.jmir.org/2020/10/e18140/)：低负担输入、个性化表达、可编辑与可视回顾。
 - [NIMH 自我关怀建议](https://www.nimh.nih.gov/health/topics/caring-for-your-mental-health)：放松、运动、音乐与个人适配。
+- [Codrops 交互角色原作者教程](https://tympanus.net/codrops/2019/10/14/how-to-create-an-interactive-3d-character-with-three-js/)：参考鼠标注视和点击反馈的交互思路，团子几何与变形代码独立实现。
+- [MDN touch-action](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action)、[Three.js Raycaster](https://threejs.org/docs/pages/Raycaster.html)：触屏滚动边界与真实部位命中的实现依据。
 
 片刻用于自我记录与日常关怀，不提供诊断或疗效承诺。
