@@ -416,8 +416,10 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           if (disposed) return;
           if (staticTimer) { clearTimeout(staticTimer); staticTimer = null; }
           held = null; active = null;
-          if (kind !== 'drag' && kind !== 'pinch') resetSpring();
-          fieldKind = kind;
+          // 快速摇晃通常接在拖动后，保留已有身体回弹，不能在眩晕开始时瞬间跳回原位。
+          const keepDragSpring = kind === 'shake' && fieldKind === 'drag';
+          if (kind !== 'drag' && kind !== 'pinch' && !keepDragSpring) resetSpring();
+          if (!keepDragSpring) fieldKind = kind;
           pullTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
           if (hit) fieldAnchor.set(hit.local.x, hit.local.y, hit.local.z);
           else fieldAnchor.set(0, kind === 'pat' ? 0.65 : kind === 'tickle' ? -0.4 : 0, kind === 'pat' ? 0.5 : SETTINGS.body.depth);
