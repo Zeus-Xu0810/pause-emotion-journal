@@ -134,6 +134,8 @@ export default function AccountPanel({ session, returnTo, authReason }: AccountP
       if (success) setFeedback({ text: success, error: false });
       after?.();
     } catch (error) {
+      // 过期身份请求安静退出；正常注册后的发信失败没有此code，仍保留可见说明。
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'auth/session-changed') return;
       if (!canPresent()) return;
       const field = action === 'signin' || action === 'signup' || action === 'reset' ? authErrorField(error) : null;
       if (field) {

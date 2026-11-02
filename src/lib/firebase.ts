@@ -93,7 +93,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 登录、创建、退出在SDK层按顺序执行；旧create请求不能在新signOut完成后自动登录。
     const changeIdentity = <T,>(operation: (intent: number) => Promise<T>) => {
       const intent = ++identity.current.intent;
-      const promise = identity.current.queue.then(() => { ensureIntent(intent); return operation(intent); });
+      const promise = identity.current.queue.then(async () => {
+        ensureIntent(intent);
+        try { const result = await operation(intent); ensureIntent(intent); return result; }
+        catch (error) { ensureIntent(intent); throw error; }
+      });
       identity.current.queue = promise.then(() => undefined, () => undefined);
       return { intent, promise };
     };
