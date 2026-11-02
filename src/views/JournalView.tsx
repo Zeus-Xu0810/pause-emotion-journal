@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { CalendarDays, List, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRight, Feather, SlidersHorizontal, X } from 'lucide-react';
 import { CONTEXTS, MOODS } from '../config';
 import { dayKey, moodMeta } from '../lib/domain';
+import { filterJournalEntries, journalFilterCount, journalMonth, parseJournalFilters } from '../lib/journal-filters';
 import type { MoodEntry } from '../types';
 
 /** 日记先呈现日期、心情与短记，筛选和操作按需展开。 */
@@ -10,12 +11,15 @@ export default function JournalView({ entries, onEdit, onDelete, onCreate }: { e
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [filtersOpen, setFiltersOpen] = useState(() => params.size > 0);
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const date = params.get('date') ?? '';
-  const context = params.get('context') ?? '';
-  const mood = params.get('mood') ?? '';
-  function filter(key: string, value: string) { const next = new URLSearchParams(params); if (value) next.set(key, value); else next.delete(key); setParams(next); }
-  const filtered = entries.filter(entry => (!date || dayKey(entry.occurredAt) === date) && (!context || entry.contexts.includes(context)) && (!mood || String(entry.mood) === mood));
+  const filters = parseJournalFilters(params);
+  const { date, context, mood, from, to } = filters;
+  const filterCount = journalFilterCount(filters);
+  const [month, setMonth] = useState(() => journalMonth(date || to));
+  // 从旧日期的趋势点或链接进入时，月历应定位到所选日期所在月份。
+  useEffect(() => { if (date) setMonth(journalMonth(date)); }, [date]);
+  function filter(key: string, value: string) { const next = new URLSearchParams(params); if (key === 'date') { next.delete('from'); next.delete('to'); } if (value) next.set(key, value); else next.delete(key); setParams(next); }
+  const filtered = filterJournalEntries(entries, filters);
+  const calendarEntries = filterJournalEntries(entries, { ...filters, date: '' });
   const first = new Date(month);
   first.setDate(first.getDate() - (first.getDay() + 6) % 7);
   const days = Array.from({ length: 42 }, (_, i) => { const day = new Date(first); day.setDate(day.getDate() + i); return day; });
@@ -24,22 +28,23 @@ export default function JournalView({ entries, onEdit, onDelete, onCreate }: { e
   return <section className="journal-view">
     {/* 视图切换常驻，筛选收起时仍能看见当前筛选数量。 */}
     <div className="journal-toolbar">
-      <button className={`filter-toggle ${filtersOpen ? 'is-active' : ''}`} aria-expanded={filtersOpen} aria-controls="journal-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />筛选{params.size > 0 && <span className="filter-count">{params.size}</span>}</button>
+      <button className={`filter-toggle ${filtersOpen ? 'is-active' : ''}`} aria-expanded={filtersOpen} aria-controls="journal-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />筛选{filterCount > 0 && <span className="filter-count">{filterCount}</span>}</button>
       <div className="view-toggle" aria-label="日记视图"><button className={view === 'list' ? 'is-active' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')}><List size={17} />时间线</button><button className={view === 'calendar' ? 'is-active' : ''} aria-pressed={view === 'calendar'} onClick={() => setView('calendar')}><CalendarDays size={17} />月历</button></div>
     </div>
     <div id="journal-filters" className="filters journal-filter-panel" hidden={!filtersOpen}>
       <label className="filter-control">日期<input aria-label="筛选日期" type="date" value={date} onChange={event => filter('date', event.target.value)} /></label>
       <label className="filter-control">情绪<select aria-label="筛选情绪" value={mood} onChange={event => filter('mood', event.target.value)}><option value="">全部</option>{MOODS.map(item => <option key={item.score} value={item.score}>{item.label}</option>)}</select></label>
       <label className="filter-control">情境<select aria-label="筛选情境" value={context} onChange={event => filter('context', event.target.value)}><option value="">全部</option>{CONTEXTS.map(item => <option key={item}>{item}</option>)}</select></label>
-      {params.size > 0 && <button className="text-button" onClick={() => setParams({})}><X size={14} />清除</button>}
+      {(from || to) && <span className="filter-control">时间范围：{from || '最早'} — {to || '至今'}</span>}
+      {filterCount > 0 && <button className="text-button" onClick={() => setParams({})}><X size={14} />清除</button>}
     </div>
     {/* 月历保留真实记录印记，点击日期与时间线共用筛选。 */}
-    {view === 'calendar' && <section className="calendar-panel"><div className="calendar-header"><h2>{month.getFullYear()}年 {month.getMonth() + 1}月</h2><div className="inline-actions"><button className="icon-button" aria-label="上个月" onClick={() => changeMonth(-1)}><ChevronLeft size={20} /></button><button className="text-button" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>本月</button><button className="icon-button" aria-label="下个月" onClick={() => changeMonth(1)}><ChevronRight size={20} /></button></div></div><div className="calendar-grid">{['一', '二', '三', '四', '五', '六', '日'].map(day => <div className="calendar-weekday" key={day}>周{day}</div>)}{days.map(day => {
+    {view === 'calendar' && <section className="calendar-panel"><div className="calendar-header"><h2 aria-live="polite">{month.getFullYear()}年 {month.getMonth() + 1}月</h2><div className="inline-actions"><button className="icon-button" aria-label="上个月" onClick={() => changeMonth(-1)}><ChevronLeft size={20} /></button><button className="text-button" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>本月</button><button className="icon-button" aria-label="下个月" onClick={() => changeMonth(1)}><ChevronRight size={20} /></button></div></div><div className="calendar-grid">{['一', '二', '三', '四', '五', '六', '日'].map(day => <div className="calendar-weekday" key={day}>周{day}</div>)}{days.map(day => {
       const key = dayKey(day);
-      const matches = entries.filter(entry => dayKey(entry.occurredAt) === key && (!context || entry.contexts.includes(context)) && (!mood || String(entry.mood) === mood));
+      const matches = calendarEntries.filter(entry => dayKey(entry.occurredAt) === key);
       return <button className={`calendar-cell ${day.getMonth() !== month.getMonth() ? 'is-outside' : ''} ${matches.length ? 'has-entry' : ''} ${date === key ? 'is-selected' : ''}`} aria-label={`${key}，${matches.length}条记录`} aria-pressed={date === key} key={key} onClick={() => filter('date', date === key ? '' : key)}><span>{day.getDate()}</span><span className="calendar-dots">{matches.slice(0, 4).map(entry => <i key={entry.id} style={{ background: moodMeta(entry.mood).color }} />)}</span></button>;
     })}</div></section>}
-    <div className="section-heading"><p>{date ? `${date} · ` : ''}{filtered.length} 个片刻</p><button className="text-button" onClick={onCreate}><Feather size={15} />记一笔</button></div>
+    <div className="section-heading"><p>{date ? `${date} · ` : from || to ? `${from || '最早'} — ${to || '至今'} · ` : ''}{filtered.length} 个片刻</p><button className="text-button" onClick={onCreate}><Feather size={15} />记一笔</button></div>
     {filtered.length === 0 ? <div className="empty-state"><Feather size={32} strokeWidth={1.2} /><h2>{entries.length ? '没有匹配的片刻' : '从此刻开始'}</h2><button className="primary-button" onClick={entries.length ? () => setParams({}) : onCreate}>{entries.length ? '清除筛选' : '记一笔'}</button></div> : <div className="entry-list">{[...filtered].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).map(entry => {
       const when = new Date(entry.occurredAt);
       const meta = moodMeta(entry.mood);

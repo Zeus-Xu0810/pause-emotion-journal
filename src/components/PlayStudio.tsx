@@ -3,6 +3,8 @@ import { ArrowLeft, ArrowRight, Check, Pause, Play } from 'lucide-react';
 import { FEEDBACK_OPTIONS } from '../care-content';
 import { PLAY_ACTIVITIES, PLAY_SETTINGS, type PlayActivityId } from '../play-content';
 import { formatPlayTime, storedPlaySeconds } from '../lib/play';
+import { friendlyCloudError } from '../lib/firebase';
+import { hasRecordableSessionTime, isAuthenticationRequired } from '../lib/session-save';
 import type { CareFeedback, CareSession } from '../types';
 import type { PlayHubProps } from './PlayHub';
 import DrawingGame from './games/DrawingGame';
@@ -25,6 +27,7 @@ export default function PlayStudio({ activityId, onBack, mood, entryId = null, o
   const accumulated = useRef(0);
   const firstMood = useRef({ mood, entryId });
   const pending = useRef<Omit<CareSession, 'feedback'> | null>(null);
+  const saveLock = useRef(false);
   const mounted = useRef(true);
   const inViewport = useRef(true);
   const readElapsed = useCallback(() => accumulated.current + (startedAt.current === null ? 0 : performance.now() - startedAt.current), []);
@@ -56,18 +59,22 @@ export default function PlayStudio({ activityId, onBack, mood, entryId = null, o
   function resume() { if (!visible || statusRef.current !== 'paused') return; startedAt.current = performance.now(); changeStatus('running'); }
   function finish() {
     if (statusRef.current !== 'running' && statusRef.current !== 'paused') return;
-    const actual = readElapsed(); accumulated.current = actual; startedAt.current = null; setElapsed(actual);
+    const actual = readElapsed();
+    // 不足存储精度的试触继续计时，不将它向上伪造为一秒记录。
+    if (!hasRecordableSessionTime(actual)) { onNotice('再玩一小会儿，就能记下本次活动。'); return; }
+    accumulated.current = actual; startedAt.current = null; setElapsed(actual);
     pending.current = { id: crypto.randomUUID(), type: 'play', title: activity.title, durationSeconds: storedPlaySeconds(actual), beforeMood: firstMood.current.mood, entryId: firstMood.current.entryId, createdAt: new Date().toISOString() };
     changeStatus('finished');
   }
   function reset() { pending.current = null; accumulated.current = 0; startedAt.current = null; setElapsed(0); setFeedback(null); setSaved(false); changeStatus('idle'); }
   // 失败保留同一个UUID与反馈，继续点击保存不会变成多条完成记录。
   async function save() {
-    if (!pending.current || !feedback || saving || saved) return;
+    if (!pending.current || !feedback || saveLock.current || saved) return;
+    saveLock.current = true;
     setSaving(true);
-    try { await onComplete({ ...pending.current, feedback }); if (mounted.current) setSaved(true); }
-    catch (error) { onNotice(error instanceof Error ? error.message : '暂未记下，请重试。'); }
-    finally { if (mounted.current) setSaving(false); }
+    try { await onComplete({ ...pending.current, feedback }); pending.current = null; if (mounted.current) setSaved(true); }
+    catch (error) { if (!isAuthenticationRequired(error)) onNotice(friendlyCloudError(error)); }
+    finally { saveLock.current = false; if (mounted.current) setSaving(false); }
   }
   const active = visible && (status === 'idle' || status === 'running');
   return <section className={`play-studio play-studio-${activityId}`} ref={hostRef} aria-label={activity.title}>

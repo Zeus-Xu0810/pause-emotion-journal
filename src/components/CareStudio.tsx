@@ -3,6 +3,8 @@ import { ArrowRight, Check, CloudRain, Footprints, Headphones, Leaf, Pause, Play
 import { SETTINGS } from '../config';
 import { CARE_KINDS, CARE_SETTINGS, FEEDBACK_OPTIONS, MINDFUL_STEPS, MOVEMENT_STEPS, SOUND_OPTIONS } from '../care-content';
 import { createCareAudio } from '../lib/audio';
+import { friendlyCloudError } from '../lib/firebase';
+import { isAuthenticationRequired } from '../lib/session-save';
 import type { CareAudioController, CareSound } from '../lib/audio';
 import type { CareFeedback, PracticeKind, CareSession, MoodScore } from '../types';
 import '../care.css';
@@ -43,6 +45,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
   const statusRef = useRef<PracticeStatus>('idle');
   const mountedRef = useRef(true);
   const pendingRef = useRef<Omit<CareSession, 'feedback'> | null>(null);
+  const saveLock = useRef(false);
   const runMetaRef = useRef({ mood, entryId, kind, title: '' });
   const practiceId = useId();
   const content = CARE_KINDS.find((item) => item.kind === kind)!;
@@ -174,14 +177,18 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
 
   // 唯一 ID 在结束时产生，保存失败重试复用 ID，避免重复提交同一次练习。
   const save = async () => {
-    if (!feedback || !pendingRef.current || saving || saved) return;
+    if (!feedback || !pendingRef.current || saveLock.current || saved) return;
+    // 引用锁在事件当下生效，避免状态尚未刷新时连续触发同一保存。
+    saveLock.current = true;
     setSaving(true);
     try {
       await onComplete({ ...pendingRef.current, feedback });
+      pendingRef.current = null;
       if (mountedRef.current) setSaved(true);
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : '这次练习暂未保存，请重试。');
+      if (!isAuthenticationRequired(error)) onNotice(friendlyCloudError(error));
     } finally {
+      saveLock.current = false;
       if (mountedRef.current) setSaving(false);
     }
   };
