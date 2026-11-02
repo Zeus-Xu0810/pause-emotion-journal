@@ -1,0 +1,125 @@
+/* 玩法外观参数集中于此；沿用片刻的本地圆体、留白和柔和纸色。 */
+.play-hub, .play-studio { --play-radius: 22px; --play-stage-height: 490px; --play-space: 22px; --play-night: #173d34; max-width: 990px; margin: 0 auto; }
+.play-activity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.play-activity-card { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 0 22px 25px; border: 1px solid #ffffff90; border-radius: var(--play-radius); background: var(--activity-paper); text-align: left; overflow: hidden; transition: transform 240ms ease, box-shadow 240ms ease; }
+.play-activity-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px #233d350b; }
+.play-card-art { display: block; width: 100%; height: 200px; margin-bottom: 12px; }
+.play-card-copy { display: flex; flex-direction: column; gap: 7px; }
+.play-card-copy strong { font-size: 22px; line-height: 1.5; }
+.play-card-copy > span { font-size: 12px; color: var(--ink-soft); }
+.play-card-arrow { position: absolute; right: 21px; bottom: 32px; opacity: .65; }
+.play-classics { padding: 39px 0 10px; text-align: center; }
+.play-classics p { font-size: 12px; color: var(--muted); margin: 0 0 19px; }
+.play-classics > div { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.play-classics a { display: inline-flex; align-items: center; gap: 9px; min-height: 46px; padding: 10px 23px; border: 1px solid var(--line); border-radius: 28px; background: #ffffff60; text-decoration: none; font-size: 14px; }
+.play-classics a:hover { border-color: #b9d1c1; background: var(--green-light); }
+
+/* 会话控制始终独立于画面；计时只描述活动，不作为目标或排名。 */
+.play-studio { max-width: 820px; }
+.play-studio-heading { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; margin: 0 0 26px; }
+.play-studio-heading h2 { margin: 0; font-size: 26px; text-align: center; white-space: nowrap; }
+.play-back { display: inline-flex; align-items: center; justify-self: start; gap: 7px; min-height: 40px; border: 0; padding: 6px 0; background: transparent; font-size: 12px; color: var(--ink-soft); }
+.play-session-time { justify-self: end; font-size: 14px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.play-stage-wrap { position: relative; min-width: 0; }
+.play-session-controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 25px; }
+.play-soft-button, .play-end-button, .play-icon-button, .play-link-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 9px 17px; border: 1px solid var(--line); border-radius: 24px; background: transparent; font-size: 12px; }
+.play-soft-button:hover:not(:disabled), .play-icon-button:hover:not(:disabled) { background: var(--green-light); border-color: #c1d8c8; }
+.play-end-button { border-color: #c5d7cc; background: var(--green-light); min-width: 165px; }
+.play-end-button:hover:not(:disabled) { background: #d8e8dd; }
+.play-icon-button { width: 40px; min-height: 40px; padding: 8px; border-color: transparent; }
+.play-link-button { border: 0; color: var(--ink-soft); }
+.play-pause-overlay { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 22px; border-radius: var(--play-radius); background: #f7faf8e8; backdrop-filter: blur(5px); }
+.play-pause-overlay > span { font-size: 25px; }
+.play-pause-overlay .primary-button { min-width: 138px; }
+.play-finish { min-height: 410px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 22px; }
+.play-finish-mark { display: grid; place-items: center; width: 58px; height: 58px; border: 1px solid #c1d6c7; background: var(--green-light); border-radius: 50%; }
+.play-finish h3 { margin: 0 0 4px; font-size: 28px; }
+.play-feedback { display: flex; align-items: center; justify-content: center; gap: 9px; margin-bottom: 5px; }
+.play-feedback button { min-width: 95px; min-height: 44px; padding: 10px 15px; border: 1px solid var(--line); border-radius: 24px; background: transparent; font-size: 14px; }
+.play-feedback button.is-selected { background: var(--green-light); border-color: #adcbb7; }
+.play-finish > .primary-button { min-width: 170px; }
+.play-help { text-align: center; font-size: 12px; color: var(--ink-soft); margin-top: 18px; }
+.play-help summary { width: max-content; max-width: 100%; min-height: 34px; margin: 0 auto; cursor: pointer; }
+.play-help p { margin: 7px auto 0; max-width: 400px; font-size: 12px; line-height: 1.9; }
+.play-studio .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); border: 0; }
+
+/* 涂鸦：仅纸面拦截绘画手势，纸面以外仍可自然滚动。 */
+.drawing-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 17px; flex-wrap: wrap; }
+.drawing-colors { display: flex; align-items: center; gap: 9px; padding-left: 4px; }
+.drawing-colors button { width: 27px; height: 27px; border: 4px solid var(--paper); border-radius: 50%; padding: 0; background: var(--swatch); box-shadow: 0 0 0 1px transparent; }
+.drawing-colors button.is-selected { box-shadow: 0 0 0 1px var(--swatch); }
+.drawing-colors button:hover:not(:disabled) { transform: scale(1.08); }
+.drawing-brushes { display: flex; align-items: center; padding: 3px; border-radius: 24px; background: #eaf1ec; }
+.drawing-brushes button { min-width: 58px; min-height: 35px; padding: 5px 12px; border: 0; border-radius: 22px; background: transparent; font-size: 12px; color: var(--ink-soft); }
+.drawing-brushes button.is-selected { color: var(--ink); background: #fff; }
+.drawing-paper { position: relative; overflow: hidden; border: 1px solid #e7e3d9; border-radius: 18px; box-shadow: 0 7px 30px #746f4d06; }
+.drawing-paper canvas { display: block; width: 100%; aspect-ratio: 5 / 3; cursor: crosshair; touch-action: none; background: #fffdf7; }
+.drawing-cursor { position: absolute; width: 12px; height: 12px; border: 1px solid #365746; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; background: #ffffff70; }
+.drawing-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; }
+.drawing-actions > div { display: flex; gap: 4px; }
+
+/* 星图：下一颗星以柔和光晕指路，已连的线不显示进度分数。 */
+.star-patterns { display: flex; gap: 7px; justify-content: center; flex-wrap: wrap; margin-bottom: 17px; }
+.star-patterns button { min-width: 44px; min-height: 37px; padding: 6px 14px; border: 1px solid transparent; border-radius: 22px; background: transparent; font-size: 14px; color: var(--ink-soft); }
+.star-patterns button.is-selected { background: #e9e6ef; color: #665d7d; }
+.star-patterns button:hover:not(:disabled) { border-color: #d9d3e4; }
+.star-board { position: relative; aspect-ratio: 100 / 72; overflow: hidden; border-radius: var(--play-radius); background: #283b3c; touch-action: none; }
+.star-lines { display: block; width: 100%; height: 100%; }
+.star-point { position: absolute; width: 39px; height: 39px; display: grid; place-items: center; margin: -19.5px 0 0 -19.5px; padding: 0; border: 0; border-radius: 50%; color: #8c9f99; background: transparent; opacity: 1 !important; transition: color 400ms ease, background 400ms ease; }
+.star-point:disabled { cursor: default; }
+.star-point span { font-size: 17px; line-height: 1; }
+.star-point.is-lit { color: #ecd9b1; }
+.star-point.is-next { color: #f3e5c5; background: #e3d9b912; box-shadow: 0 0 30px #dfd4ad12; animation: star-invite 3.2s ease-in-out infinite; }
+.star-point.is-next span { font-size: 21px; }
+.star-point:focus-visible { outline-color: #ead8b2; outline-offset: 0; }
+.star-board.is-complete .star-point.is-lit { text-shadow: 0 0 13px #ead8b270; }
+.star-caption { position: absolute; bottom: 21px; left: 20px; right: 20px; display: flex; align-items: center; justify-content: center; gap: 7px; color: #d7e3dc; font-size: 12px; pointer-events: none; }
+.star-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 13px; }
+.star-footer > span { color: var(--ink-soft); font-size: 12px; }
+@keyframes star-invite { 50% { box-shadow: 0 0 29px #dfd4ad26; background: #e3d9b91c; } }
+
+/* 微光以低速下落，团子跟随输入；没有边界失败或声音刺激。 */
+.light-board { border-radius: var(--play-radius); overflow: hidden; background: var(--play-night); }
+.light-board canvas { display: block; width: 100%; aspect-ratio: 5 / 3; touch-action: none; cursor: none; }
+.light-caption { text-align: center; font-size: 12px; color: var(--ink-soft); margin: 17px 0 0; }
+
+/* 小屏工具保持两行内可读，游戏外自然滚动，不吞掉整页手势。 */
+@media (max-width: 700px) {
+  .play-activity-grid { gap: 12px; }
+  .play-activity-card { padding: 0 13px 20px; border-radius: 18px; }
+  .play-card-art { height: 150px; margin-bottom: 6px; }
+  .play-card-copy strong { font-size: 19px; }
+  .play-card-copy > span { font-size: 12px; max-width: 110px; }
+  .play-card-arrow { display: none; }
+  .play-studio-heading { gap: 9px; margin-bottom: 21px; }
+  .play-studio-heading h2 { font-size: 23px; }
+  .play-back { font-size: 12px; }
+  .play-classics a { padding: 9px 16px; }
+}
+@media (max-width: 500px) {
+  .play-activity-grid { grid-template-columns: 1fr; gap: 12px; }
+  .play-activity-card { display: grid; grid-template-columns: 125px 1fr; align-items: center; min-height: 136px; padding: 0 18px 0 0; }
+  .play-card-art { height: 130px; margin: 0; }
+  .play-card-copy strong { font-size: 22px; }
+  .play-card-copy > span { max-width: none; }
+  .play-classics { padding-top: 26px; }
+  .play-classics > div { gap: 8px; }
+  .play-classics a { padding: 8px 13px; gap: 6px; font-size: 13px; }
+  .drawing-toolbar { justify-content: center; gap: 12px; }
+  .light-board canvas { aspect-ratio: 1 / 1; }
+  .star-lines { position: absolute; inset: 0; }
+  .star-point { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+  .star-patterns { gap: 3px; }
+  .star-patterns button { min-width: 36px; padding: 6px 10px; }
+  .play-studio-heading h2 { font-size: 21px; }
+  .play-back span { display: none; }
+  .play-back { min-width: 40px; }
+  .play-session-controls { gap: 10px; margin-top: 22px; }
+  .play-feedback { gap: 6px; }
+  .play-feedback button { min-width: 86px; padding: 9px 11px; }
+  .star-footer > span { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-activity-card, .drawing-colors button, .star-point { animation: none !important; transition: none !important; }
+  .play-activity-card:hover { transform: none; }
+}
