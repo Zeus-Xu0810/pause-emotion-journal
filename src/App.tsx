@@ -74,12 +74,12 @@ function Application() {
   const [deleting, setDeleting] = useState<MoodEntry | null>(null);
   const [removing, setRemoving] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
-  const previousUid = useRef<string | null>(null);
+  const previousUser = useRef<typeof session.user>(null);
   const [authGate, setAuthGate] = useState<{ kind: 'signin' | 'verify'; returnTo: '/' | '/care' } | null>(null);
   const [pendingCare, setPendingCare] = useState<{ care: CareSession; owner: string | null } | null>(null);
-  const operationOwner = useRef({ uid: session.user?.uid ?? null, epoch: 0 });
+  const operationOwner = useRef({ uid: session.user?.uid ?? null, user: session.user, epoch: 0 });
   const uid = session.user?.uid ?? null;
-  if (operationOwner.current.uid !== uid) operationOwner.current = { uid, epoch: operationOwner.current.epoch + 1 };
+  if (operationOwner.current.user !== session.user) operationOwner.current = { uid, user: session.user, epoch: operationOwner.current.epoch + 1 };
   const liveDraft = useRef({ form, editing });
   liveDraft.current = { form, editing };
   const savingDraft = useRef<symbol | null>(null);
@@ -89,8 +89,8 @@ function Application() {
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(null), 5500); return () => clearTimeout(timer); }, [notice]);
   useEffect(() => { const changed = () => setOnline(navigator.onLine); window.addEventListener('online', changed); window.addEventListener('offline', changed); return () => { window.removeEventListener('online', changed); window.removeEventListener('offline', changed); }; }, []);
   useEffect(() => { document.title = `片刻 · ${navigation.find(item => item.path === location.pathname)?.title ?? '我的空间'}`; window.scrollTo(0, 0); }, [location.pathname]);
-  // 已登录账号退出或换人时立即清空编辑状态，防止共用设备留下前一人的文字。
-  useLayoutEffect(() => { const uid = session.user?.uid ?? null; if (previousUid.current && previousUid.current !== uid) { setForm(emptyComposer()); setEditing(null); setLastSaved(null); setDeleting(null); setRemoving(false); setPendingCare(null); setAuthGate(null); savingDraft.current = null; savingCare.current = null; } previousUid.current = uid; }, [session.user?.uid]);
+  // 已登录身份退出或重新登录时清空编辑；同一User的验证和昵称刷新不丢稿。
+  useLayoutEffect(() => { if (previousUser.current && previousUser.current !== session.user) { setForm(emptyComposer()); setEditing(null); setLastSaved(null); setDeleting(null); setRemoving(false); setPendingCare(null); setAuthGate(null); savingDraft.current = null; savingCare.current = null; } previousUser.current = session.user; }, [session.user]);
   // 即使在账号页切换身份，也立即释放前一人的画作；普通路由切换继续保留。
   useLayoutEffect(() => { selectDrawingOwner(session.user?.uid ?? 'guest'); }, [session.user?.uid]);
   useEffect(() => { const leave = (event: BeforeUnloadEvent) => { if (form.note || editing) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', leave); return () => window.removeEventListener('beforeunload', leave); }, [form.note, editing]);
@@ -154,7 +154,7 @@ function Application() {
       await journal.remove(entry);
       if (operationOwner.current !== owner) return;
       if (liveDraft.current.editing?.id === entry.id) resetEditor();
-      if (lastSaved === entry.id) setLastSaved(null);
+      setLastSaved(previous => previous === entry.id ? null : previous);
       setDeleting(null); onNotice('这条记录已删除。', 'success');
     } catch (error) { if (operationOwner.current === owner) onNotice(friendlyCloudError(error), 'error'); }
     finally { if (operationOwner.current === owner) setRemoving(false); }
