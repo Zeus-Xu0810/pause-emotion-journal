@@ -66,3 +66,6 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 - 切换账号立即隔离旧记录和草稿，迟到的保存/订阅响应不能覆盖新账号状态；活动保存重试沿用相同编号与反馈。
 - 回顾与活动统计共用自然日窗口，情境回看保留所选范围，旧日期链接定位对应月历，无效URL筛选不会隐形生效。
 - 表单设计参考：[GOV.UK密码输入](https://design-system.service.gov.uk/components/password-input/)、[USWDS登录表单](https://designsystem.digital.gov/templates/form-templates/sign-in-form/)、[W3C表单指南](https://www.w3.org/WAI/tutorials/forms/)。
+
+
+本次验证：55项单元测试、账号夹具8项浏览器回归、认证异步竞态10项内存模拟检查，以及真实云端22项临时账号烟雾检查通过。云端检查使用管理员生成的验证/重置链接，不代表真实收件箱送达测试；临时账号与文档均已清理。页面在602×689、390×844、1920×1080、2560×1440布局下检查：首页保存可见，日记展开筛选无横向溢出，手机数据态趋势和情境回看正常。
