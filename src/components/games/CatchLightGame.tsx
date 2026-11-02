@@ -26,28 +26,34 @@ export default function CatchLightGame({ active, onInteract }: { active: boolean
     const resize = () => { const rect = canvas.getBoundingClientRect(); const dpr = Math.min(2, window.devicePixelRatio || 1); canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr)); paint(performance.now(), 0); };
     function paint(now: number, delta: number) {
       if (!canvas || !context) return;
-      context.setTransform(canvas.width / LIGHT_SETTINGS.width, 0, 0, canvas.height / LIGHT_SETTINGS.height, 0, 0);
+      const scaleX = canvas.width / LIGHT_SETTINGS.width;
+      const scaleY = canvas.height / LIGHT_SETTINGS.height;
+      // 世界坐标仍铺满整个舞台，角色和圆形光效单独补偿纵向比例。
+      const roundY = scaleX / scaleY;
+      context.setTransform(scaleX, 0, 0, scaleY, 0, 0);
       visibleBrightness.current += (brightnessRef.current - visibleBrightness.current) * (reducedMotion.matches ? 1 : Math.min(1, delta * 2));
       const brightness = visibleBrightness.current;
       const night = Number.parseInt(LIGHT_SETTINGS.background.slice(1), 16); const dawn = Number.parseInt(LIGHT_SETTINGS.litBackground.slice(1), 16);
       const channels = [16, 8, 0].map(shift => Math.round(((night >> shift) & 255) * (1 - brightness) + ((dawn >> shift) & 255) * brightness));
       context.fillStyle = `rgb(${channels.join(',')})`; context.fillRect(0, 0, LIGHT_SETTINGS.width, LIGHT_SETTINGS.height);
       // 接住光点只会逐渐照亮天空，不显示数量或成绩，也不设置终点。
-      for (let index = 0; index < 24; index += 1) { const x = (index * 137 + 46) % LIGHT_SETTINGS.width; const y = (index * 83 + 25) % LIGHT_SETTINGS.height; context.fillStyle = `rgba(226,232,208,${0.06 + brightness * 0.38})`; context.beginPath(); context.arc(x, y, 1 + index % 3 * 0.35, 0, Math.PI * 2); context.fill(); }
+      for (let index = 0; index < 24; index += 1) { const x = (index * 137 + 46) % LIGHT_SETTINGS.width; const y = (index * 83 + 25) % LIGHT_SETTINGS.height; const radius = 1 + index % 3 * 0.35; context.fillStyle = `rgba(226,232,208,${0.06 + brightness * 0.38})`; context.beginPath(); context.ellipse(x, y, radius, radius * roundY, 0, 0, Math.PI * 2); context.fill(); }
       const target = targetRef.current;
       for (const light of lightsRef.current) {
         if (light.caughtAt !== null) {
           const fraction = (now - light.caughtAt) / LIGHT_SETTINGS.respawnMilliseconds;
-          if (fraction < 1) { context.beginPath(); context.arc(light.x, light.y, 12 + fraction * 33, 0, Math.PI * 2); context.strokeStyle = `rgba(235,215,173,${(1 - fraction) * 0.35})`; context.lineWidth = 1; context.stroke(); continue; }
+          if (fraction < 1) { context.save(); context.translate(light.x, light.y); context.scale(1, roundY); context.beginPath(); context.arc(0, 0, 12 + fraction * 33, 0, Math.PI * 2); context.strokeStyle = `rgba(235,215,173,${(1 - fraction) * 0.35})`; context.lineWidth = 1; context.stroke(); context.restore(); continue; }
           light.x = 60 + Math.random() * (LIGHT_SETTINGS.width - 120); light.y = reducedMotion.matches ? 50 + Math.random() * (LIGHT_SETTINGS.height - 100) : -25; light.caughtAt = null;
         }
         if (active && !reducedMotion.matches) { light.x += light.vx * delta; light.y += light.vy * delta; if (light.x < 35 || light.x > LIGHT_SETTINGS.width - 35) { light.vx *= -1; light.x = clamp(light.x, 35, LIGHT_SETTINGS.width - 35); } if (light.y > LIGHT_SETTINGS.height + 30) { light.y = -25; light.x = 60 + Math.random() * (LIGHT_SETTINGS.width - 120); } }
-        if (active && engagedRef.current && distance(light, target) < LIGHT_SETTINGS.catcherRadius + light.radius) { light.caughtAt = now; brightnessRef.current = Math.min(1, brightnessRef.current + LIGHT_SETTINGS.brightnessPerCatch); if (now - lastAnnouncement.current > 1600) { lastAnnouncement.current = now; setAnnouncement('天空又亮了一点'); } continue; }
-        const glow = context.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius * 6); glow.addColorStop(0, '#ead4a680'); glow.addColorStop(1, '#ead4a600'); context.fillStyle = glow; context.beginPath(); context.arc(light.x, light.y, light.radius * 6, 0, Math.PI * 2); context.fill();
-        context.fillStyle = LIGHT_SETTINGS.lightColor; context.beginPath(); context.arc(light.x, light.y, light.radius, 0, Math.PI * 2); context.fill();
+        const captureDistance = Math.hypot(light.x - target.x, (light.y - target.y) / roundY);
+        if (active && engagedRef.current && captureDistance < LIGHT_SETTINGS.catcherRadius + light.radius) { light.caughtAt = now; brightnessRef.current = Math.min(1, brightnessRef.current + LIGHT_SETTINGS.brightnessPerCatch); if (now - lastAnnouncement.current > 1600) { lastAnnouncement.current = now; setAnnouncement('天空又亮了一点'); } continue; }
+        context.save(); context.translate(light.x, light.y); context.scale(1, roundY);
+        const glow = context.createRadialGradient(0, 0, 0, 0, 0, light.radius * 6); glow.addColorStop(0, '#ead4a680'); glow.addColorStop(1, '#ead4a600'); context.fillStyle = glow; context.beginPath(); context.arc(0, 0, light.radius * 6, 0, Math.PI * 2); context.fill();
+        context.fillStyle = LIGHT_SETTINGS.lightColor; context.beginPath(); context.arc(0, 0, light.radius, 0, Math.PI * 2); context.fill(); context.restore();
       }
       // 奶白小团子的手脚、眼睛和微笑均在本地画布绘制，不依赖外部素材。
-      context.save(); context.translate(target.x, target.y); context.scale(LIGHT_SETTINGS.playerScale, LIGHT_SETTINGS.playerScale); context.lineCap = 'round'; context.lineWidth = 9; context.strokeStyle = '#e8e5d2';
+      context.save(); context.translate(target.x, target.y); context.scale(LIGHT_SETTINGS.playerScale, LIGHT_SETTINGS.playerScale * roundY); context.lineCap = 'round'; context.lineWidth = 9; context.strokeStyle = '#e8e5d2';
       context.beginPath(); context.moveTo(-29, 8); context.lineTo(-46, 18); context.moveTo(29, 8); context.lineTo(46, 18); context.moveTo(-13, 28); context.lineTo(-16, 39); context.moveTo(13, 28); context.lineTo(16, 39); context.stroke();
       const body = context.createRadialGradient(-12, -18, 3, 0, 0, 48); body.addColorStop(0, '#fffef0'); body.addColorStop(1, '#e5e3cf'); context.fillStyle = body; context.beginPath(); context.ellipse(0, 0, 37, 32, 0, 0, Math.PI * 2); context.fill();
       context.fillStyle = '#456354'; context.beginPath(); context.ellipse(-11, -4, 2.2, 3, 0, 0, Math.PI * 2); context.ellipse(11, -4, 2.2, 3, 0, 0, Math.PI * 2); context.fill(); context.strokeStyle = '#456354'; context.lineWidth = 2; context.beginPath(); context.moveTo(-7, 8); context.quadraticCurveTo(0, 15, 7, 8); context.stroke(); context.fillStyle = '#d8aaa780'; context.beginPath(); context.ellipse(-22, 5, 5, 3, 0, 0, Math.PI * 2); context.ellipse(22, 5, 5, 3, 0, 0, Math.PI * 2); context.fill(); context.restore();
