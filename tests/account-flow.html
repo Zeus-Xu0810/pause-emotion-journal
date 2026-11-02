@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>片刻账号流程本地验收</title>
+    <style>
+      /* 此夹具不是生产构建入口；调试样式仅作用于本页的控制器。 */
+      body.account-fixture { margin: 0; padding: 25px 20px 50px; background: #f7faf8; }
+      .fixture-shell { max-width: 1100px; margin: auto; }
+      .fixture-title { margin: 0 0 9px; font-size: 26px; }
+      .fixture-intro { max-width: 820px; color: #667b72; font-size: 14px; line-height: 1.8; }
+      .fixture-scenarios, .fixture-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+      .fixture-scenarios button, .fixture-actions button { min-height: 38px; padding: 7px 13px; border: 1px solid #d1dfd5; border-radius: 20px; color: #294737; background: #fffef9; font: inherit; font-size: 13px; }
+      .fixture-scenarios button:hover, .fixture-actions button:hover { background: #e6f0e8; }
+      .fixture-grid { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 34px; align-items: start; }
+      #account-mount { min-width: 0; padding: 20px 0; }
+      .fixture-console { min-width: 0; padding-top: 22px; font-size: 13px; line-height: 1.8; }
+      .fixture-console h2 { font-size: 17px; margin: 0 0 10px; }
+      #pending-request { overflow-wrap: anywhere; color: #667b72; }
+      #account-test-results { margin: 14px 0; padding-left: 24px; }
+      [data-result='pass'], #account-test-status[data-status='passed'] { color: #39764f; }
+      [data-result='fail'], #account-test-status[data-status='failed'] { color: #aa4f42; }
+      #fixture-log { max-height: 280px; overflow: auto; padding: 12px; border: 1px solid #dfe8df; border-radius: 8px; background: #fffef9; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 ui-monospace, monospace; }
+      .fixture-return { padding: 55px 15px; text-align: center; }
+      .fixture-return p { color: #667b72; font-size: 16px; }
+      .fixture-network { color: #667b72; font-size: 12px; }
+      @media (max-width: 850px) { .fixture-grid { grid-template-columns: 1fr; gap: 10px; } .fixture-console { padding-top: 0; } }
+    </style>
+  </head>
+  <body class="account-fixture">
+    <main class="fixture-shell">
+      <h1 class="fixture-title">账号流程本地验收</h1>
+      <p class="fixture-intro">真实 React 表单，假的账号服务。不会登录真实账号，也不会发邮件。先选状态，再像正常用户一样操作；请求会停在“处理中”，点击完成或失败后才返回。</p>
+      <div class="fixture-scenarios" aria-label="模拟账号状态">
+        <button type="button" data-scenario="signin">登录</button>
+        <button type="button" data-scenario="signup">注册</button>
+        <button type="button" data-scenario="unverified">未验证</button>
+        <button type="button" data-scenario="verified">已验证</button>
+        <button type="button" data-scenario="loading">确认中</button>
+        <button type="button" data-scenario="unavailable">服务未连接</button>
+      </div>
+      <div class="fixture-grid">
+        <div id="account-mount"></div>
+        <aside class="fixture-console" aria-label="假服务与回归结果">
+          <h2>假服务控制</h2>
+          <output id="pending-request" aria-live="polite">尚无请求</output>
+          <div class="fixture-actions">
+            <button id="complete-request" type="button">完成请求</button>
+            <button id="reject-request" type="button">模拟网络错误</button>
+          </div>
+          <div class="fixture-actions"><button id="run-account-tests" type="button">运行全部回归</button><output id="account-test-status" data-status="idle" aria-live="polite">尚未运行</output></div>
+          <ol id="account-test-results" aria-live="polite"></ol>
+          <details><summary>方法调用记录（不记录密码）</summary><pre id="fixture-log">尚无调用</pre></details>
+          <p class="fixture-network" id="network-status">未挂载真实 AuthProvider；本页拦截异源 fetch / XHR。</p>
+        </aside>
+      </div>
+    </main>
+    <script type="module">
+      import React, { useState } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { MemoryRouter, Route, Routes, Link } from 'react-router-dom';
+      import '../src/styles.css';
+
+      /** 夹具输入集中配置：只用保留示例域名，所有假请求由本页手动完成。 */
+      const FIXTURE = {
+        email: 'pause-tester@example.com',
+        password: 'PauseTest2026',
+        differentPassword: 'AnotherTest2026',
+        name: '小测试',
+        waitTimeoutMs: 2500,
+      };
+      const root = createRoot(document.getElementById('account-mount'));
+      const mount = document.getElementById('account-mount');
+      const pendingOutput = document.getElementById('pending-request');
+      const logOutput = document.getElementById('fixture-log');
+      let epoch = 0;
+      let calls = [];
+      let queue = [];
+      let blockedRequests = 0;
+      let running = false;
+
+      /** 先阻断异源，再动态导入表单；真实模块的初始化也不能访问账号网络端点。 */
+      const localResource = resource => {
+        const url = new URL(typeof resource === 'string' || resource instanceof URL ? resource : resource.url, location.href);
+        return url.origin === location.origin || url.protocol === 'blob:' || url.protocol === 'data:';
+      };
+      function blocked() {
+        blockedRequests += 1;
+        document.getElementById('network-status').textContent = `已在本地阻断 ${blockedRequests} 次异源请求，没有连接真实账号服务。`;
+      }
+      const realFetch = window.fetch.bind(window);
+      window.fetch = (resource, options) => {
+        if (!localResource(resource)) { blocked(); return Promise.reject(new TypeError('本地夹具禁止异源请求')); }
+        return realFetch(resource, options);
+      };
+      const realOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        if (!localResource(url)) { blocked(); throw new DOMException('本地夹具禁止异源请求', 'SecurityError'); }
+        return realOpen.call(this, method, url, ...rest);
+      };
+      // 真实表单只复用错误翻译模块；先放入虚构项目，阻止模块初始化读取真实项目或其登录缓存。
+      const { initializeApp, getApps } = await import('firebase/app');
+      if (getApps().length) throw new Error('请在独立页面重新打开夹具，避免复用已存在的Firebase实例。');
+      initializeApp({ apiKey: 'fixture-local-only', authDomain: location.host, projectId: 'pause-account-local-fixture', appId: 'fixture:account:local' }, 'account-flow-fixture');
+      const { default: AccountPanel } = await import('../src/components/AccountPanel.tsx');
+
+      /** 日志仅记录非敏感参数和调用次数，不复制或显示密码正文。 */
+      function publish() {
+        pendingOutput.textContent = queue.length ? `等待 ${queue[0].method} · 待响应 ${queue.length} 次` : '尚无等待请求';
+        document.getElementById('complete-request').disabled = !queue.length;
+        document.getElementById('reject-request').disabled = !queue.length;
+        logOutput.textContent = calls.length ? calls.map((call, index) => `${index + 1}. ${call.method} ${JSON.stringify(call.details)}`).join('\n') : '尚无调用';
+      }
+      function request(method, details, apply) {
+        calls.push({ method, details });
+        const promise = new Promise((resolve, reject) => { queue.push({ method, apply, resolve, reject }); });
+        publish(); return promise;
+      }
+      function complete() {
+        const item = queue.shift();
+        if (!item) return;
+        item.apply?.(); item.resolve(); publish();
+      }
+      function reject(code = 'auth/network-request-failed') {
+        const item = queue.shift();
+        if (!item) return;
+        item.reject(Object.assign(new Error('夹具模拟失败'), { code })); publish();
+      }
+      const fakeUser = (verified, email = FIXTURE.email, name = FIXTURE.name) => ({ uid: 'fixture-user', email, displayName: name, emailVerified: verified });
+
+      /** 仅创建与AuthSession同形的假对象；从不挂载AuthProvider或调用Firebase方法。 */
+      function FakeAccount({ scenario }) {
+        const [user, setUser] = useState(() => scenario === 'unverified' ? fakeUser(false) : scenario === 'verified' ? fakeUser(true) : null);
+        const session = {
+          user, ready: scenario !== 'loading', available: scenario !== 'unavailable',
+          signIn: (email, password, remember) => request('signIn', { email, passwordLength: password.length, remember }, () => setUser(fakeUser(true, email))),
+          signUp: (email, password, name, remember) => request('signUp', { email, name, passwordLength: password.length, remember }, () => setUser(fakeUser(false, email, name))),
+          signOut: () => request('signOut', {}, () => setUser(null)),
+          reloadVerification: () => request('reloadVerification', {}, () => setUser(previous => ({ ...previous, emailVerified: true }))),
+          sendVerification: () => request('sendVerification', {}, null),
+          resetPassword: email => request('resetPassword', { email }, null),
+          updateName: name => request('updateName', { name }, () => setUser(previous => ({ ...previous, displayName: name }))),
+        };
+        return React.createElement(AccountPanel, { session, onNotice: () => {}, returnTo: '/', authReason: '这是本地测试，不会提交任何真实日记。' });
+      }
+      function ReturnScene() {
+        return React.createElement('div', { className: 'fixture-return', 'data-testid': 'returned-to-record' },
+          React.createElement('p', null, '已返回模拟记录页，没有自动保存。'),
+          React.createElement(Link, { className: 'secondary-button', to: '/account?mode=signin' }, '回到账号夹具'));
+      }
+      function showScenario(scenario = 'signin') {
+        // 切换状态会卸载旧表单；旧请求拒绝后不可把成功/错误写入新状态。
+        queue.splice(0).forEach(item => item.reject(Object.assign(new Error('夹具已切换'), { code: 'fixture/cancelled' })));
+        calls = []; epoch += 1; publish();
+        root.render(React.createElement(MemoryRouter, { key: epoch, initialEntries: [`/account?mode=${scenario === 'signup' ? 'signup' : 'signin'}`] },
+          React.createElement(Routes, null,
+            React.createElement(Route, { path: '/account', element: React.createElement(FakeAccount, { scenario }) }),
+            React.createElement(Route, { path: '*', element: React.createElement(ReturnScene) }))));
+      }
+
+      /** 回归只使用真实DOM公开字段与原生事件，假服务完成不依赖固定网络延迟。 */
+      const frames = async (count = 2) => { for (let i = 0; i < count; i += 1) await new Promise(requestAnimationFrame); };
+      async function until(check, message) {
+        const started = performance.now();
+        while (!check()) { if (performance.now() - started > FIXTURE.waitTimeoutMs) throw new Error(message); await frames(1); }
+      }
+      const assert = (condition, message) => { if (!condition) throw new Error(message); };
+      const field = id => mount.querySelector('#' + id);
+      const button = text => [...mount.querySelectorAll('button, a')].find(node => node.textContent.trim() === text);
+      async function fill(id, value) {
+        const input = field(id); assert(input, '缺少字段 ' + id);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true })); await frames();
+      }
+      async function scenario(name) { showScenario(name); await until(() => mount.querySelector('h1'), '账号表单没有挂载'); await frames(); }
+      const submit = () => mount.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      async function loginValues() { await fill('account-email', FIXTURE.email); await fill('account-password', FIXTURE.password); }
+      const checkNoOverflow = () => {
+        const card = mount.querySelector('.account-form-panel');
+        assert(card && card.scrollWidth <= card.clientWidth + 1, '账号卡片出现横向溢出');
+      };
+
+      async function runTests() {
+        if (running) return;
+        running = true;
+        const runButton = document.getElementById('run-account-tests'); runButton.disabled = true;
+        document.querySelectorAll('[data-scenario]').forEach(node => { node.disabled = true; });
+        const status = document.getElementById('account-test-status'); status.dataset.status = 'running'; status.textContent = '正在运行';
+        const output = document.getElementById('account-test-results'); output.replaceChildren();
+        const results = [];
+        async function check(name, test) {
+          const item = document.createElement('li'); item.textContent = name; output.append(item);
+          try { await test(); item.dataset.result = 'pass'; item.textContent = '通过 · ' + name; results.push({ name, pass: true }); }
+          catch (error) { item.dataset.result = 'fail'; item.textContent = '失败 · ' + name + '：' + error.message; results.push({ name, pass: false, error: error.message }); }
+        }
+        await check('登录空字段定位，未调用服务', async () => {
+          await scenario('signin'); submit(); await frames();
+          assert(calls.length === 0, '无效表单调用了服务');
+          assert(field('account-email').getAttribute('aria-invalid') === 'true', '邮箱未标记错误');
+          assert(document.activeElement === field('account-email'), '焦点没有回到邮箱'); checkNoOverflow();
+        });
+        await check('注册确认密码不一致时阻止提交', async () => {
+          await scenario('signup'); await fill('account-name', FIXTURE.name); await loginValues(); await fill('account-confirm-password', FIXTURE.differentPassword);
+          submit(); await frames();
+          assert(calls.length === 0, '确认密码不一致仍调用服务');
+          assert(field('account-confirm-password').getAttribute('aria-invalid') === 'true', '确认密码未标记错误');
+          checkNoOverflow();
+        });
+        await check('注册可见密码开关与重复提交互斥', async () => {
+          await scenario('signup'); await fill('account-name', FIXTURE.name); await loginValues(); await fill('account-confirm-password', FIXTURE.password);
+          const reveal = mount.querySelector('button[aria-controls="account-password"]'); reveal.click(); await frames();
+          assert(field('account-password').type === 'text', '密码显示开关无效');
+          submit(); submit(); await frames();
+          assert(calls.filter(call => call.method === 'signUp').length === 1, '重复提交穿透');
+          assert(mount.querySelector('[type="submit"]').disabled && field('account-email').disabled, '等待时仍可重复操作');
+          complete(); await until(() => mount.querySelector('h1')?.textContent === '验证邮箱', '注册没有进入未验证状态');
+        });
+        await check('登录失败保留输入，重试后主动返回记录', async () => {
+          await scenario('signin'); await loginValues(); submit(); await until(() => queue.length === 1, '登录未调用假服务');
+          reject('auth/invalid-credential'); await until(() => mount.querySelector('.account-message.is-error'), '登录错误未显示');
+          assert(field('account-password').value === FIXTURE.password, '失败后丢失密码输入');
+          submit(); await until(() => queue.length === 1, '重试没有调用服务'); complete();
+          await until(() => mount.querySelector('.account-continue'), '成功后没有返回入口');
+          mount.querySelector('.account-continue').click(); await until(() => mount.querySelector('[data-testid="returned-to-record"]'), '返回记录未工作');
+        });
+        await check('重置成功独立显示，可返回登录', async () => {
+          await scenario('signin'); button('忘记密码？').click(); await frames();
+          await fill('account-email', FIXTURE.email); submit(); submit(); await frames();
+          assert(calls.filter(call => call.method === 'resetPassword').length === 1, '重置重复发送');
+          complete(); await until(() => mount.querySelector('.account-reset-success'), '未呈现重置成功状态');
+          assert(!mount.querySelector('form'), '成功后仍保留发送表单');
+          button('返回登录').click(); await until(() => mount.querySelector('h1')?.textContent === '登录片刻', '没有返回登录');
+        });
+        await check('未验证发信可见失败，再确认进入已验证', async () => {
+          await scenario('unverified'); button('重新发送验证邮件').click(); await until(() => queue.length === 1, '未调用模拟发信');
+          reject(); await until(() => mount.querySelector('.account-message.is-error'), '发送失败未显示');
+          button('我已完成验证').click(); await until(() => queue.length === 1, '未调用模拟验证'); complete();
+          await until(() => mount.querySelector('.account-verification.is-verified'), '验证状态未更新');
+          assert(Boolean(mount.querySelector('.account-continue')), '已验证后没有继续入口'); checkNoOverflow();
+        });
+        await check('已验证账号修改昵称与退出', async () => {
+          await scenario('verified'); mount.querySelector('.account-settings').open = true;
+          await fill('account-name', '新昵称'); submit(); await until(() => queue.length === 1, '修改昵称未调用服务'); complete(); await frames();
+          assert(field('account-name').value === '新昵称', '昵称没有更新');
+          button('退出登录').click(); await until(() => queue.length === 1, '退出未调用服务'); complete();
+          await until(() => mount.querySelector('h1')?.textContent === '登录片刻', '退出没有清除账号界面');
+          assert(field('account-email').value === '', '退出后残留上一账号邮箱');
+        });
+        await check('服务未就绪与不可用状态不伪装登录成功', async () => {
+          await scenario('loading'); assert(Boolean(mount.querySelector('.account-loading')), '缺少确认中状态');
+          await scenario('unavailable'); assert(mount.querySelector('[type="submit"]').disabled, '服务不可用仍能提交');
+          assert(calls.length === 0, '不可用状态触发服务'); checkNoOverflow();
+        });
+        window.__ACCOUNT_FLOW_RESULTS__ = results;
+        const passed = results.filter(item => item.pass).length;
+        status.dataset.status = passed === results.length ? 'passed' : 'failed'; status.textContent = `${passed} / ${results.length} 通过`;
+        running = false; runButton.disabled = false;
+        document.querySelectorAll('[data-scenario]').forEach(node => { node.disabled = false; });
+      }
+
+      /** 手动浏览与自动回归使用同一假服务，便于复现每个中间状态。 */
+      document.querySelectorAll('[data-scenario]').forEach(node => node.addEventListener('click', () => showScenario(node.dataset.scenario)));
+      document.getElementById('complete-request').addEventListener('click', complete);
+      document.getElementById('reject-request').addEventListener('click', () => reject());
+      document.getElementById('run-account-tests').addEventListener('click', () => void runTests());
+      window.accountFixture = { showScenario, complete, reject, runTests, get calls() { return calls; }, get pendingCount() { return queue.length; }, get blockedRequests() { return blockedRequests; } };
+      showScenario();
+    </script>
+  </body>
+</html>
