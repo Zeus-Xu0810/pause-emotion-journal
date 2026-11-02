@@ -140,7 +140,6 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
   if (size.width > 0 && size.height > 0) {
     style['--fb-left'] = `${frame.left}px`; style['--fb-top'] = `${frame.top}px`;
     style['--fb-width'] = `${frame.width}px`; style['--fb-height'] = `${frame.height}px`;
-    style['--fb-origin'] = '0px';
   }
 
   return <div ref={rootRef} className={`mascot-fallback mascot-face-${expression} ${reduced ? 'is-reduced' : ''}`} data-gesture={kind ?? 'idle'} data-reaction={reaction ?? 'idle'} data-region={interaction?.hit.region ?? 'body'} style={style} aria-hidden="true">

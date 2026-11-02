@@ -51,7 +51,8 @@
 
 /* CSS后备沿用相同头部、脸颊、眼球和手脚层级，手势可直接改变局部形状。 */
 .mascot-fallback { position: absolute; inset: 0; pointer-events: none; --fb-eye-open: 1; --fb-cheek-opacity: .34; }
-.mascot-fallback-rig { position: absolute; left: var(--fb-left, 50%); top: var(--fb-top, 49%); width: var(--fb-width, min(70cqw, 80cqh)); height: var(--fb-height, auto); aspect-ratio: 1.03; transform: translate(var(--fb-origin, -50%), var(--fb-origin, -50%)) translate(var(--fb-drag-x, 0px), var(--fb-drag-y, 0px)); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+/* 首帧与测量后的左上坐标一致，只有实际拖拽参与回弹过渡，避免命中区域先于角色到位。 */
+.mascot-fallback-rig { position: absolute; left: var(--fb-left, calc(50% - min(70cqw, 80cqh) / 2)); top: var(--fb-top, calc(49% - min(70cqw, 80cqh) / 1.03 / 2)); width: var(--fb-width, min(70cqw, 80cqh)); height: var(--fb-height, auto); aspect-ratio: 1.03; transform: translate(var(--fb-drag-x, 0px), var(--fb-drag-y, 0px)); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
 .mascot-fallback[data-gesture='drag'] .mascot-fallback-rig { transition: none; }
 .mascot-fallback-pose { position: relative; width: 100%; height: 100%; transform: scale(var(--fb-body-x, 1), var(--fb-body-y, 1)); transform-origin: 50% 72%; transition: transform 200ms ease; }
 .mascot-static-shadow { position: absolute; z-index: -2; left: 16%; bottom: -6%; width: 68%; height: 7%; border-radius: 50%; background: #36564014; filter: blur(7px); }
