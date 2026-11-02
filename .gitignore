@@ -1,0 +1,6 @@
+# 本地部署关联与私密设置不进入公开仓库。
+.vercel/
+.env
+.env.*
+node_modules/
+dist/
