@@ -1,63 +1,101 @@
-/* 账户页面只保留一列，圆体、留白和原生表单构成安静的登录入口。 */
-.account-layout, .account-layout.is-minimal { display: block; max-width: 410px; margin: 0 auto 35px; }
-.account-form-panel { min-width: 0; padding: 8px 0 25px; }
-.account-heading { display: flex; align-items: center; justify-content: center; gap: 12px; text-align: center; }
-.account-heading > svg { width: 22px; height: 22px; color: #8aab97; }
-.account-heading h2 { margin: 0; font-size: 27px; font-weight: 400; line-height: 1.6; }
-.account-heading .eyebrow { margin-bottom: 8px; }
-.account-copy { margin: 14px 0 26px; color: var(--ink-soft); font-size: 13px; line-height: 1.9; text-align: center; }
-.account-note { display: none; }
-.account-tabs { display: flex; justify-content: center; gap: 5px; width: max-content; margin: 27px auto; padding: 4px; border-radius: 25px; background: #ecf3ee; }
-.account-tabs button { min-width: 117px; min-height: 40px; padding: 9px 20px; border: 0; border-radius: 22px; background: transparent; font-size: 14px; color: var(--ink-soft); }
-.account-tabs button.is-active { background: white; color: var(--ink); box-shadow: 0 1px 7px #233d3506; }
-
-/* 表单用44px以上目标，错误提示保留实际原因而不打断输入。 */
-.account-form { display: flex; flex-direction: column; gap: 10px; }
-.account-form > label { color: var(--ink-soft); font-size: 13px; margin-top: 5px; }
-.account-form input:not([type='checkbox']) { width: 100%; min-width: 0; min-height: 47px; padding: 12px 14px; border: 1px solid #dbe5dd; border-radius: 7px; background: #fff9; color: var(--ink); font-size: 14px; }
-.account-form input:not([type='checkbox']):focus { border-color: #a0bda9; background: white; }
-.account-form input::placeholder { font-size: 13px; color: #91a095; }
-.account-form .account-remember { display: flex; align-items: center; gap: 8px; min-height: 34px; margin: 7px 0; cursor: pointer; font-size: 12px; }
-.account-remember input { accent-color: var(--green); width: 15px; height: 15px; margin: 0; }
-.account-primary, .account-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-height: 44px; padding: 11px 20px; border: 1px solid var(--green-deep); border-radius: 24px; font-size: 14px; }
-.account-primary { background: var(--green-deep); color: white; }
-.account-primary:hover:not(:disabled) { background: #365b4b; border-color: #365b4b; }
-.account-secondary { background: transparent; border-color: #d0dfd4; color: var(--ink); }
-.account-secondary:hover:not(:disabled) { background: var(--mint); }
-.account-submit { margin-top: 9px; }
-.account-submit svg { width: 15px; height: 15px; }
-.account-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 0; border: 0; background: none; color: var(--ink-soft); font-size: 13px; }
-.account-text-button:hover { color: var(--ink); }
-.account-reset-link { align-self: center; margin-top: 3px; }
-.account-message { padding: 12px 15px; margin: 18px 0 0; border-radius: 6px; background: var(--green-light); color: #597a63; font-size: 13px; line-height: 1.9; overflow-wrap: anywhere; }
-.account-message.is-error { background: #f7ebe5; color: var(--danger); }
-.account-unavailable { padding: 13px 15px; margin-bottom: 19px; border-radius: 6px; background: #f2ecdf; color: #877452; }
-.account-unavailable strong, .account-verification strong { font-size: 13px; font-weight: 400; }
-.account-unavailable p, .account-verification p { margin: 6px 0 0; font-size: 12px; line-height: 1.9; }
-
-/* 已登录账户的修改资料、验证和密码操作集中在可折叠设置中。 */
-.account-email { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 22px 0; color: var(--ink-soft); font-size: 14px; overflow-wrap: anywhere; }
-.account-verification { display: flex; align-items: flex-start; gap: 10px; padding: 13px 15px; margin: 19px 0; border-radius: 6px; background: #f2ecdf; color: #877452; }
-.account-verification > svg { flex-shrink: 0; margin-top: 2px; }
-.account-verification.is-verified { background: var(--green-light); color: #607d67; }
-.account-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
-.account-inline { display: flex; align-items: center; gap: 10px; }
-.account-inline .account-secondary { flex-shrink: 0; }
-.account-divider { height: 1px; background: var(--line); margin: 25px 0 9px; }
-.account-reset-heading h3 { font-size: 22px; margin: 0 0 8px; }
-.account-reset-heading p { font-size: 13px; line-height: 1.9; color: var(--ink-soft); margin: 0 0 12px; }
-.account-settings { border-top: 1px solid var(--line); margin-top: 27px; }
-.account-settings-body { padding: 14px 0 0; }
-.account-settings-body > p { font-size: 13px; color: var(--ink-soft); line-height: 1.9; }
-
-/* 手机输入使用16px，避免聚焦邮箱或密码时触发系统页面缩放。 */
-@media (max-width: 640px) {
-  .account-layout { margin-bottom: 25px; padding: 0 4px; }
-  .account-heading h2 { font-size: 25px; }
-  .account-form input:not([type='checkbox']) { font-size: 16px; }
-  .account-form input::placeholder { font-size: 13px; }
-  .account-inline { flex-wrap: wrap; }
-  .account-inline .account-secondary { margin-left: auto; }
-  .account-primary, .account-secondary { font-size: 13px; }
-  .account-actions { gap: 9px; }
+/* 账号页仅管理局部布局；字号、颜色和控件尺寸复用全站集中设置。 */
+.account-layout, .account-layout.is-minimal {
+  --account-card-radius: 28px;
+  --account-card-padding: 32px;
+  --account-form-gap: 20px;
+  --account-heading-size: 30px;
+  display: block;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto 36px;
 }
+.account-form-panel { min-width: 0; padding: var(--account-card-padding); border: 1px solid var(--line); border-radius: var(--account-card-radius); background: #fffef9; box-shadow: 0 12px 42px #29473706; }
+.account-heading h1 { margin: 0; color: var(--ink); font-family: var(--font-round); font-size: var(--account-heading-size); line-height: 1.4; font-weight: 400; text-align: center; }
+.account-copy { margin: 11px 0 0; color: var(--ink-soft); font-size: var(--small, 15px); line-height: 1.6; text-align: center; }
+.account-reason { margin: 22px 0 0; padding: 12px 15px; border-radius: 14px; background: var(--green-light); color: var(--green-deep); font-size: var(--small, 15px); line-height: 1.65; text-align: center; }
+
+/* 模式是原生按钮组，保留键盘焦点和点击范围，不伪装成没有键盘行为的tab。 */
+.account-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin: 28px 0; padding: 5px; border-radius: var(--pill-radius, 999px); background: #eaf0e6; }
+.account-tabs button { min-width: 0; min-height: var(--compact-control-height, 44px); padding: 9px 18px; border: 0; border-radius: var(--pill-radius, 999px); background: transparent; color: var(--ink-soft); font-size: var(--control-text, 18px); }
+.account-tabs button.is-active { color: var(--ink); background: #fffef9; box-shadow: 0 2px 8px #2947370a; }
+.account-tabs button:hover:not(:disabled):not(.is-active) { background: #ffffff59; }
+
+/* 字段独立分组，错误与说明均留在对应输入下方，布局不依赖占位文字。 */
+.account-form { display: flex; flex-direction: column; gap: var(--account-form-gap); min-width: 0; }
+.account-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.account-field > label { color: var(--ink); font-size: var(--text, 18px); line-height: 1.5; }
+.account-form input:not([type='checkbox']) { display: block; width: 100%; min-width: 0; min-height: var(--control-height, 52px); padding: 13px 15px; border: 1px solid #cedbce; border-radius: var(--field-radius, 8px); background: #fff; color: var(--ink); font-size: max(16px, var(--control-text, 18px)); line-height: 1.5; transition: border-color var(--motion), box-shadow var(--motion); }
+.account-form input:not([type='checkbox']):focus { border-color: #6d9578; box-shadow: 0 0 0 3px #6d957814; }
+.account-form input:not([type='checkbox'])[aria-invalid='true'] { border-color: var(--danger); }
+.account-form input::placeholder { color: #849087; opacity: 1; font-size: inherit; }
+.account-form input:disabled { background: #f3f5ef; color: var(--ink-soft); }
+.account-field-hint, .account-field-error, .account-helper { margin: 0; font-size: var(--small, 15px); line-height: 1.65; }
+.account-field-hint, .account-helper { color: var(--ink-soft); }
+.account-field-error { color: var(--danger); }
+.account-helper { text-align: center; }
+.account-password-wrap { position: relative; min-width: 0; }
+.account-form .account-password-wrap input { padding-right: 58px; }
+.account-password-toggle { position: absolute; display: grid; place-items: center; right: 4px; top: 50%; width: var(--compact-control-height, 44px); height: var(--compact-control-height, 44px); transform: translateY(-50%); padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); }
+.account-password-toggle:hover:not(:disabled) { color: var(--ink); background: var(--green-light); }
+.account-password-toggle:active:not(:disabled) { transform: translateY(-50%); }
+.account-form-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 15px; margin-top: -5px; }
+.account-remember { display: inline-flex; align-items: center; gap: 10px; min-height: var(--compact-control-height, 44px); color: var(--ink-soft); cursor: pointer; font-size: var(--small, 15px); }
+.account-remember input { flex: 0 0 auto; width: 19px; height: 19px; margin: 0; accent-color: var(--green-deep); }
+
+/* 主操作和返回动作沿用奶白绿与圆角，不增加第三方登录或虚构条款入口。 */
+.account-primary, .account-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: var(--control-height, 52px); padding: 12px 21px; border: 1px solid var(--green-deep); border-radius: var(--pill-radius, 999px); font-size: var(--control-text, 18px); line-height: 1.5; text-decoration: none; }
+.account-primary { color: #fffef9; background: var(--green-deep); }
+.account-primary:hover:not(:disabled) { color: #fffef9; border-color: #365b4b; background: #365b4b; }
+.account-secondary { color: var(--ink); border-color: #c9d7ca; background: transparent; }
+.account-secondary:hover:not(:disabled) { background: var(--green-light); }
+.account-submit, .account-continue { width: 100%; }
+.account-submit { margin-top: 0; }
+.account-text-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--compact-control-height, 44px); padding: 8px 0; border: 0; background: transparent; color: var(--ink-soft); font-size: var(--small, 15px); line-height: 1.5; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: #aab9a7; }
+.account-text-button:hover:not(:disabled) { color: var(--ink); text-decoration-color: currentColor; }
+.account-reset-link { align-self: center; }
+.account-message, .account-unavailable { margin: 20px 0 0; padding: 13px 15px; border-radius: 12px; color: var(--green-deep); background: var(--green-light); font-size: var(--small, 15px); line-height: 1.7; overflow-wrap: anywhere; }
+.account-message.is-error { color: var(--danger); background: #f8ece6; }
+.account-unavailable { margin-bottom: 20px; color: #79603d; background: #f5ecdb; }
+.account-loading { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 30px 0 8px; color: var(--ink-soft); font-size: var(--text, 18px); }
+
+/* 找回成功独立呈现真实发送结果，避免与仍可提交的表单一起反复提示。 */
+.account-reset-description { margin: 28px 0 0; text-align: left; }
+.account-reset-success { display: flex; align-items: stretch; flex-direction: column; gap: 18px; margin-top: 28px; }
+.account-success-icon { display: grid; place-items: center; align-self: center; width: 58px; height: 58px; border-radius: 50%; color: var(--green-deep); background: var(--green-light); }
+.account-reset-success > p { margin: 0; font-size: var(--text, 18px); line-height: 1.75; text-align: center; overflow-wrap: anywhere; }
+.account-reset-success > .account-helper { color: var(--ink-soft); font-size: var(--small, 15px); }
+.account-reset-success .account-text-button { align-self: center; margin-top: -10px; }
+
+/* 已登录状态保留验证、资料修改和退出入口，账号设置默认折叠。 */
+.account-email { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 27px 0 20px; color: var(--ink-soft); font-size: var(--text, 18px); line-height: 1.65; overflow-wrap: anywhere; }
+.account-email svg, .account-verification svg { flex: 0 0 auto; }
+.account-email span { min-width: 0; }
+.account-verification { display: flex; align-items: flex-start; gap: 11px; margin: 0 0 22px; padding: 15px; border-radius: 14px; background: #f4eddd; color: #79603d; }
+.account-verification p { margin: 0; font-size: var(--small, 15px); line-height: 1.65; }
+.account-verification svg { margin-top: 2px; }
+.account-verification.is-verified { color: var(--green-deep); background: var(--green-light); }
+.account-actions.is-verification { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 6px; }
+.account-settings { margin-top: 28px; border-top: 1px solid var(--line); }
+.account-settings > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--control-height, 52px); margin-top: 8px; padding: 10px 0; color: var(--ink); font-size: var(--text, 18px); list-style: none; cursor: pointer; }
+.account-settings > summary::-webkit-details-marker { display: none; }
+.account-settings > summary svg { transition: transform var(--motion); }
+.account-settings[open] > summary svg { transform: rotate(180deg); }
+.account-settings-body { padding: 12px 0 0; }
+.account-settings-body > .account-text-button { margin-top: 14px; text-align: left; }
+.account-inline { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.account-inline .account-secondary { flex: 0 0 auto; min-height: var(--control-height, 52px); }
+.account-signout { display: flex; width: max-content; margin: 12px auto -3px; text-decoration: none; }
+
+/* 反馈动效仅提示正在等待服务；系统减少动态时保留静态图标。 */
+.account-spinner { animation: account-spin 1s linear infinite; }
+@keyframes account-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .account-spinner { animation: none; } }
+
+/* 手机输入至少16px，按钮不缩小；窄屏让表单自然换行而非横向溢出。 */
+@media (max-width: 640px) {
+  .account-layout, .account-layout.is-minimal { --account-card-padding: 23px 20px; --account-heading-size: 27px; --account-form-gap: 18px; --account-card-radius: 24px; max-width: 460px; margin-bottom: 28px; }
+  .account-tabs { margin-top: 24px; margin-bottom: 24px; }
+  .account-email { font-size: var(--text, 16px); }
+  .account-primary, .account-secondary { padding-inline: 16px; }
+}
+@media (max-width: 370px) { .account-layout, .account-layout.is-minimal { --account-card-padding: 22px 16px; } }
