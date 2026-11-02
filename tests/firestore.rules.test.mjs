@@ -114,6 +114,25 @@ test('练习记录正常保存读取，不能覆盖历史或越权查看', async
   await assertFails(getDoc(doc(visitor, carePath)));
   await assertSucceeds(deleteDoc(doc(alice, carePath)));
 });
+
+/** 新玩法沿用私密完成事件，只放行既有字段，作品和操作轨迹不得写入。 */
+test('五种关怀类型向后兼容，play仍受账号隔离与字段白名单约束', async () => {
+  for (const type of ['breathing', 'mindfulness', 'music', 'movement', 'play']) {
+    const path = `users/alice/careSessions/${type}`;
+    await assertSucceeds(setDoc(doc(alice, path), validCare({ type, title: type === 'play' ? '自由涂鸦' : '轻轻休息' })));
+    await assertSucceeds(getDoc(doc(alice, path)));
+    await assertFails(getDoc(doc(bob, path)));
+    await assertFails(getDoc(doc(visitor, path)));
+    await assertFails(getDoc(doc(unverified, path)));
+    await assertFails(updateDoc(doc(alice, path), { feedback: 'better' }));
+  }
+  for (const database of [bob, visitor, unverified]) {
+    await assertFails(setDoc(doc(database, 'users/alice/careSessions/blocked-play'), validCare({ type: 'play' })));
+  }
+  for (const changes of [{ type: 'unknown-game' }, { artwork: 'data:image/png;base64,private' }, { trajectory: [1, 2, 3] }, { durationSeconds: 0 }, { durationSeconds: 1.5 }]) {
+    await assertFails(setDoc(doc(alice, 'users/alice/careSessions/invalid-play'), validCare({ type: 'play', ...changes })));
+  }
+});
 test('拒绝练习负值、长标题、错类型、额外权限字段和跨用户引用', async () => {
   for (const changes of [{ durationSeconds: -1 }, { durationSeconds: 999999 }, { title: '字'.repeat(81) }, { type: 'diagnosis' }, { feedback: 'cured' }, { beforeMood: '5' }, { role: 'admin' }, { entryId: '../bob/entry' }, { entryId: 'missing-entry' }]) {
     await assertFails(setDoc(doc(alice, carePath), validCare(changes)));

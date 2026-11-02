@@ -2,7 +2,7 @@ rules_version = '2';
 // 数据模型：users/{uid}/entries/{id} 为私密日记，careSessions/{id} 为私密练习记录。
 // 日记字段：mood(整数1—5)、feelings/contexts(固定词表且最多8项)、note(0—2000字)、
 // occurredAt(发生时间戳)、createdAt(不可变服务端时间戳)、updatedAt(服务端时间戳)、revision(正整数版本)。
-// 练习字段：type(四种类型)、title(1—80字)、durationSeconds(1—3600整数)、beforeMood(null或1—5)、
+// 练习字段：type(四种练习及play趣味活动)、title(1—80字)、durationSeconds(1—3600整数)、beforeMood(null或1—5)、
 // feedback(三种反馈)、entryId(null或本人日记ID)、createdAt(不可变服务端时间戳)。
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -34,7 +34,7 @@ service cloud.firestore {
     function isValidCareSession(data, uid) {
       let keys = ['type', 'title', 'durationSeconds', 'beforeMood', 'feedback', 'entryId', 'createdAt'];
       return data.keys().hasAll(keys) && data.keys().hasOnly(keys)
-        && data.type in ['breathing', 'mindfulness', 'music', 'movement']
+        && data.type in ['breathing', 'mindfulness', 'music', 'movement', 'play']
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
         && data.durationSeconds is int && data.durationSeconds >= 1 && data.durationSeconds <= 3600
         && (data.beforeMood == null || validMood(data.beforeMood))
