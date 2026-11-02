@@ -6,10 +6,10 @@ import { SETTINGS } from '../config';
 
 /** Firebase 的公开连接配置统一由部署环境提供；私钥不得放入 VITE 变量。 */
 const cloudConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY?.trim(),
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(),
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim(),
+  appId: import.meta.env.VITE_FIREBASE_APP_ID?.trim(),
 };
 export const cloudAvailable = Object.values(cloudConfig).every((value) => typeof value === 'string' && value.trim().length > 0);
 const app = cloudAvailable ? (getApps()[0] ?? initializeApp(cloudConfig)) : null;
