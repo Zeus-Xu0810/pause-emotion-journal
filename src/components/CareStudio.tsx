@@ -46,6 +46,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
   const mountedRef = useRef(true);
   const pendingRef = useRef<Omit<CareSession, 'feedback'> | null>(null);
   const saveLock = useRef(false);
+  const attemptedFeedback = useRef<CareFeedback | null>(null);
   const runMetaRef = useRef({ mood, entryId, kind, title: '' });
   const practiceId = useId();
   const content = CARE_KINDS.find((item) => item.kind === kind)!;
@@ -89,6 +90,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
     startRef.current = null;
     accumulatedRef.current = 0;
     pendingRef.current = null;
+    attemptedFeedback.current = null;
     changeStatus('idle');
     setElapsedMs(0);
     setFeedback(null);
@@ -180,13 +182,16 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
     if (!feedback || !pendingRef.current || saveLock.current || saved) return;
     // 引用锁在事件当下生效，避免状态尚未刷新时连续触发同一保存。
     saveLock.current = true;
+    attemptedFeedback.current ??= feedback;
     setSaving(true);
     try {
-      await onComplete({ ...pendingRef.current, feedback });
+      await onComplete({ ...pendingRef.current, feedback: attemptedFeedback.current });
       pendingRef.current = null;
       if (mountedRef.current) setSaved(true);
     } catch (error) {
-      if (!isAuthenticationRequired(error)) onNotice(friendlyCloudError(error));
+      // 写入结果不确定时，重试必须保留原反馈；账号门槛尚未写入，可以继续选择。
+      if (isAuthenticationRequired(error)) attemptedFeedback.current = null;
+      else onNotice(friendlyCloudError(error));
     } finally {
       saveLock.current = false;
       if (mountedRef.current) setSaving(false);
@@ -215,7 +220,7 @@ export default function CareStudio({ compact = false, mood, entryId = null, onCo
         <div className="cs-finish-mark"><Check size={27} strokeWidth={1.3} /></div>
         <p className="cs-finish-time">{formatTime(elapsedSeconds)}</p>
         <h3>{saved ? '已记下' : '现在感觉怎样？'}</h3>
-        {saved ? <p className="cs-finish-copy">已保存本次反馈</p> : <><div className="cs-feedback" role="group" aria-label="练习后的感受">{FEEDBACK_OPTIONS.map((item) => <button type="button" aria-pressed={feedback === item.value} disabled={saving} className={feedback === item.value ? 'is-selected' : ''} key={item.value} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '保存中' : '记下'}<ArrowRight size={14} /></button></>}
+        {saved ? <p className="cs-finish-copy">已保存本次反馈</p> : <><div className="cs-feedback" role="group" aria-label="练习后的感受">{FEEDBACK_OPTIONS.map((item) => <button type="button" aria-pressed={feedback === item.value} disabled={saving || attemptedFeedback.current !== null} className={feedback === item.value ? 'is-selected' : ''} key={item.value} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '保存中' : '记下'}<ArrowRight size={14} /></button></>}
         <button type="button" className="cs-text-button" disabled={saving} onClick={reset}>{saved ? '再来一次' : '跳过'}</button>
       </div> : <>
         {kind === 'breathing' && <div className="cs-breath-stage">

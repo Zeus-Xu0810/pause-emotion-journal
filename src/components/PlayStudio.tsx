@@ -28,6 +28,7 @@ export default function PlayStudio({ activityId, onBack, mood, entryId = null, o
   const firstMood = useRef({ mood, entryId });
   const pending = useRef<Omit<CareSession, 'feedback'> | null>(null);
   const saveLock = useRef(false);
+  const attemptedFeedback = useRef<CareFeedback | null>(null);
   const mounted = useRef(true);
   const inViewport = useRef(true);
   const readElapsed = useCallback(() => accumulated.current + (startedAt.current === null ? 0 : performance.now() - startedAt.current), []);
@@ -66,21 +67,23 @@ export default function PlayStudio({ activityId, onBack, mood, entryId = null, o
     pending.current = { id: crypto.randomUUID(), type: 'play', title: activity.title, durationSeconds: storedPlaySeconds(actual), beforeMood: firstMood.current.mood, entryId: firstMood.current.entryId, createdAt: new Date().toISOString() };
     changeStatus('finished');
   }
-  function reset() { pending.current = null; accumulated.current = 0; startedAt.current = null; setElapsed(0); setFeedback(null); setSaved(false); changeStatus('idle'); }
+  function reset() { pending.current = null; attemptedFeedback.current = null; accumulated.current = 0; startedAt.current = null; setElapsed(0); setFeedback(null); setSaved(false); changeStatus('idle'); }
   // 失败保留同一个UUID与反馈，继续点击保存不会变成多条完成记录。
   async function save() {
     if (!pending.current || !feedback || saveLock.current || saved) return;
     saveLock.current = true;
+    attemptedFeedback.current ??= feedback;
     setSaving(true);
-    try { await onComplete({ ...pending.current, feedback }); pending.current = null; if (mounted.current) setSaved(true); }
-    catch (error) { if (!isAuthenticationRequired(error)) onNotice(friendlyCloudError(error)); }
+    try { await onComplete({ ...pending.current, feedback: attemptedFeedback.current }); pending.current = null; if (mounted.current) setSaved(true); }
+    // 同一个完成事件重试不更换反馈，避免云端已提交但响应丢失时显示错误结果。
+    catch (error) { if (isAuthenticationRequired(error)) attemptedFeedback.current = null; else onNotice(friendlyCloudError(error)); }
     finally { saveLock.current = false; if (mounted.current) setSaving(false); }
   }
   const active = visible && (status === 'idle' || status === 'running');
   return <section className={`play-studio play-studio-${activityId}`} ref={hostRef} aria-label={activity.title}>
     {/* 手机只显示返回图标时仍保留可读名称，键盘和读屏均可返回目录。 */}
     <header className="play-studio-heading"><button type="button" className="play-back" aria-label="全部活动" disabled={saving} onClick={onBack}><ArrowLeft size={17} /><span>全部活动</span></button><h2>{activity.title}</h2><span className="play-session-time" aria-label={`本次活动 ${formatPlayTime(elapsed)}`}>{status === 'idle' ? '' : formatPlayTime(elapsed)}</span></header>
-    {status === 'finished' ? <div className="play-finish" aria-live="polite"><span className="play-finish-mark"><Check size={25} strokeWidth={1.4} /></span><h3>{saved ? '已记下' : '现在感觉怎样？'}</h3>{!saved && <><div className="play-feedback" role="group" aria-label="活动后的感受">{FEEDBACK_OPTIONS.map(item => <button type="button" key={item.value} aria-pressed={feedback === item.value} disabled={saving} className={feedback === item.value ? 'is-selected' : ''} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '保存中' : '记下'}<ArrowRight size={15} /></button></>}<button type="button" className="play-link-button" disabled={saving} onClick={saved ? reset : onBack}>{saved ? '再玩一会儿' : '暂不记录'}</button></div> : <>
+    {status === 'finished' ? <div className="play-finish" aria-live="polite"><span className="play-finish-mark"><Check size={25} strokeWidth={1.4} /></span><h3>{saved ? '已记下' : '现在感觉怎样？'}</h3>{!saved && <><div className="play-feedback" role="group" aria-label="活动后的感受">{FEEDBACK_OPTIONS.map(item => <button type="button" key={item.value} aria-pressed={feedback === item.value} disabled={saving || attemptedFeedback.current !== null} className={feedback === item.value ? 'is-selected' : ''} onClick={() => setFeedback(item.value)}>{item.label}</button>)}</div><button type="button" className="primary-button" disabled={!feedback || saving} onClick={() => void save()}>{saving ? '保存中' : '记下'}<ArrowRight size={15} /></button></>}<button type="button" className="play-link-button" disabled={saving} onClick={saved ? reset : onBack}>{saved ? '再玩一会儿' : '暂不记录'}</button></div> : <>
       <div className="play-stage-wrap">
         {activityId === 'drawing' ? <DrawingGame ownerKey={ownerKey} active={active} onInteract={interact} onNotice={onNotice} /> : activityId === 'constellation' ? <ConstellationGame active={active} onInteract={interact} /> : <CatchLightGame active={active} onInteract={interact} />}
         {status === 'paused' && <div className="play-pause-overlay"><span>停一会儿</span><button type="button" className="primary-button" onClick={resume}><Play size={15} />继续</button></div>}
