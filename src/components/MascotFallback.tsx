@@ -9,9 +9,16 @@ const FALLBACK = {
   heightShare: 0.8,
   aspect: 1.03,
   centerY: 0.49,
-  dragLimit: 0.24,
+  stageInset: 8,
+  dragTilt: 13,
+  dragTiltPerPixel: 0.2,
+  dragStretch: 0.065,
   gazeTravel: 3.6,
-  cheekTravel: 0.12,
+  cheekTravel: 0.24,
+  cheekStretch: 1.8,
+  facePull: 0.2,
+  faceTilt: 11,
+  patFaceLift: 3.4,
   parts: {
     'hand-left': { x: -0.025, y: 0.585, rx: 0.075, ry: 0.12, angle: 18 },
     'hand-right': { x: 1.025, y: 0.585, rx: 0.075, ry: 0.12, angle: -18 },
@@ -112,27 +119,57 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
   const strength = clamp(interaction?.strength ?? 0, 0, 1);
   const isPinch = kind === 'pinch';
   const isDrag = kind === 'drag';
+  const isPat = kind === 'pat';
   const side = interaction?.hit.region === 'cheek-left' ? 'left' : interaction?.hit.region === 'cheek-right' ? 'right' : null;
   const pullX = clamp((interaction?.dx ?? 0) * size.width / 2, -frame.width * FALLBACK.cheekTravel, frame.width * FALLBACK.cheekTravel);
   const pullY = clamp((interaction?.dy ?? 0) * size.height / 2, -frame.height * FALLBACK.cheekTravel, frame.height * FALLBACK.cheekTravel);
-  const pinchScale = isPinch ? clamp(interaction?.pinchScale ?? 1, 0.88, 1.12) : 1;
+  // 双指与单侧揉捏共用局部皮肤；双指只拉两颊，不把整个身体等比放大。
+  const twoCheekScale = interaction?.pinchScale;
+  const isTwoCheeks = isPinch && twoCheekScale !== undefined;
+  const pinchSpread = isTwoCheeks ? clamp(((twoCheekScale ?? 1) - 1) * frame.width * 0.4, -frame.width * 0.1, frame.width * FALLBACK.cheekTravel) : 0;
+  const leftX = isPinch ? isTwoCheeks ? -pinchSpread : side === 'left' ? pullX : 0 : 0;
+  const rightX = isPinch ? isTwoCheeks ? pinchSpread : side === 'right' ? pullX : 0 : 0;
+  const leftY = isPinch && !isTwoCheeks && side === 'left' ? pullY : 0;
+  const rightY = isPinch && !isTwoCheeks && side === 'right' ? pullY : 0;
+  const cheekScale = (outward: number, selected: boolean) => selected ? 1 + clamp(outward / Math.max(1, frame.width) * FALLBACK.cheekStretch + strength * 0.12, -0.12, 0.58) : 1;
+  // 跟手位移在真实舞台边缘内钳制，脚仍留在工具条上方；旋转围绕实际抓点。
+  const bounds = fallbackBounds(size.width, size.height);
+  const dragX = isDrag ? clamp((interaction?.dx ?? 0) * size.width / 2, Math.min(0, FALLBACK.stageInset - bounds.left), Math.max(0, size.width - bounds.left - bounds.width - FALLBACK.stageInset)) : 0;
+  const dragY = isDrag ? clamp((interaction?.dy ?? 0) * size.height / 2, Math.min(0, FALLBACK.stageInset - bounds.top) * 0.75, Math.max(0, size.height - bounds.top - bounds.height - FALLBACK.stageInset) * 0.75) : 0;
+  const faceX = (leftX + rightX) * FALLBACK.facePull;
+  const faceY = (leftY + rightY) * FALLBACK.facePull;
+  const faceTilt = isPinch && !isTwoCheeks ? clamp((side === 'left' ? -1 : 1) * pullY / Math.max(1, frame.height) * 58 + pullX / Math.max(1, frame.width) * 16, -FALLBACK.faceTilt, FALLBACK.faceTilt) : 0;
   const style: VariableStyle = {
     '--sculpture-color': mood === null ? MASCOT_SETTINGS.neutralColor : MASCOT_SETTINGS.moodColors[mood],
     '--fb-gaze-x': reduced ? 0 : clamp(gaze.x, -1, 1),
     '--fb-gaze-y': reduced ? 0 : clamp(gaze.y, -1, 1),
     '--fb-gaze-travel': `${FALLBACK.gazeTravel}px`,
-    '--fb-drag-x': `${isDrag ? clamp(interaction?.dx ?? 0, -FALLBACK.dragLimit, FALLBACK.dragLimit) * size.width / 2 : 0}px`,
-    '--fb-drag-y': `${isDrag ? clamp(interaction?.dy ?? 0, -FALLBACK.dragLimit, FALLBACK.dragLimit) * size.height / 2 : 0}px`,
-    '--fb-body-x': kind === 'poke' ? 1 + strength * 0.025 : pinchScale,
-    '--fb-body-y': kind === 'poke' ? 1 - strength * 0.035 : 1 / pinchScale,
-    '--fb-head-y': `${kind === 'pat' ? strength * 4 : 0}%`,
-    '--fb-head-scale': kind === 'pat' ? 1 - strength * 0.1 : 1,
-    '--fb-cheek-left-x': `${isPinch && side === 'left' ? pullX : 0}px`,
-    '--fb-cheek-left-y': `${isPinch && side === 'left' ? pullY : 0}px`,
-    '--fb-cheek-right-x': `${isPinch && side === 'right' ? pullX : 0}px`,
-    '--fb-cheek-right-y': `${isPinch && side === 'right' ? pullY : 0}px`,
-    '--fb-cheek-left-scale': isPinch && side === 'left' ? 1 + strength * 0.2 : 1,
-    '--fb-cheek-right-scale': isPinch && side === 'right' ? 1 + strength * 0.2 : 1,
+    '--fb-drag-x': `${dragX}px`,
+    '--fb-drag-y': `${dragY}px`,
+    '--fb-drag-tilt': `${isDrag ? clamp(dragX * FALLBACK.dragTiltPerPixel, -FALLBACK.dragTilt, FALLBACK.dragTilt) : 0}deg`,
+    '--fb-grip-x': `${clamp(50 + (interaction?.hit.local.x ?? 0) / 1.94 * 100, 15, 85)}%`,
+    '--fb-grip-y': `${clamp(50 - (interaction?.hit.local.y ?? 0) / 1.92 * 100, 12, 88)}%`,
+    '--fb-body-x': kind === 'poke' ? 1 + strength * 0.045 : isDrag ? 1 - strength * FALLBACK.dragStretch * 0.55 : isPat ? 1 + strength * 0.025 : 1,
+    '--fb-body-y': kind === 'poke' ? 1 - strength * 0.055 : isDrag ? 1 + strength * FALLBACK.dragStretch : isPat ? 1 - strength * 0.03 : 1,
+    '--fb-shadow-scale': isDrag ? 1 - strength * 0.2 : 1,
+    '--fb-shadow-opacity': isDrag ? 0.58 : 1,
+    '--fb-head-y': `${isPat ? strength * 5 : 0}%`,
+    '--fb-head-scale': isPat ? 1 - strength * 0.14 : 1,
+    '--fb-face-x': `${faceX}px`,
+    '--fb-face-y': isPat ? `${-strength * FALLBACK.patFaceLift}%` : `${faceY}px`,
+    '--fb-face-tilt': `${faceTilt}deg`,
+    '--fb-cheek-left-x': `${leftX * 0.7}px`,
+    '--fb-cheek-left-y': `${leftY * 0.85}px`,
+    '--fb-cheek-right-x': `${rightX * 0.7}px`,
+    '--fb-cheek-right-y': `${rightY * 0.85}px`,
+    '--fb-cheek-left-scale': cheekScale(-leftX, isPinch && (isTwoCheeks || side === 'left')),
+    '--fb-cheek-right-scale': cheekScale(rightX, isPinch && (isTwoCheeks || side === 'right')),
+    '--fb-cheek-left-slim': isPinch && (isTwoCheeks || side === 'left') ? 1 - strength * 0.09 : 1,
+    '--fb-cheek-right-slim': isPinch && (isTwoCheeks || side === 'right') ? 1 - strength * 0.09 : 1,
+    '--fb-eye-left-x': `${leftX * 0.17}px`,
+    '--fb-eye-left-y': `${leftY * 0.2}px`,
+    '--fb-eye-right-x': `${rightX * 0.17}px`,
+    '--fb-eye-right-y': `${rightY * 0.2}px`,
     '--fb-touch-x': `${clamp(50 + (interaction?.hit.local.x ?? 0) * 42, 15, 85)}%`,
     '--fb-touch-y': `${clamp(50 - (interaction?.hit.local.y ?? 0) * 45, 15, 85)}%`,
   };
@@ -143,23 +180,28 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
   }
 
   return <div ref={rootRef} className={`mascot-fallback mascot-face-${expression} ${reduced ? 'is-reduced' : ''}`} data-gesture={kind ?? 'idle'} data-reaction={reaction ?? 'idle'} data-region={interaction?.hit.region ?? 'body'} style={style} aria-hidden="true">
-    <div className="mascot-fallback-rig"><div className="mascot-fallback-pose">
+    {/* 地面影子不随身体飞走，轻微缩淡让悬挂更有重量感。 */}
+    <div className="mascot-fallback-ground"><span className="mascot-static-shadow" /></div>
+    <div className="mascot-fallback-rig"><div className="mascot-fallback-suspension"><div className="mascot-fallback-pose"><div className="mascot-fallback-breath">
       {/* 手脚与主体分层，局部揉捏不会把整个团子连同影子一起拉成气球。 */}
-      <span className="mascot-static-shadow" />
-      <i className="mascot-static-hand left" style={partStyle(FALLBACK.parts['hand-left'])} />
-      <i className="mascot-static-hand right" style={partStyle(FALLBACK.parts['hand-right'])} />
+      <span className="mascot-limb mascot-hand-rig left" style={partStyle(FALLBACK.parts['hand-left'])}><i className="mascot-static-hand left" /></span>
+      <span className="mascot-limb mascot-hand-rig right" style={partStyle(FALLBACK.parts['hand-right'])}><i className="mascot-static-hand right" /></span>
       <div className="mascot-static-body">
         <span className="mascot-static-crown" />
         <span className="mascot-cheek-patch left"><i className="mascot-static-cheek" /></span>
         <span className="mascot-cheek-patch right"><i className="mascot-static-cheek" /></span>
-        {/* 眼球与高光分开移动，使鼠标注视不是简单旋转整个角色。 */}
-        <i className="mascot-static-eye left"><span className="mascot-static-pupil" /></i>
-        <i className="mascot-static-eye right"><span className="mascot-static-pupil" /></i>
-        <span className="mascot-static-mouth" /><span className="mascot-static-dent" />
+        {/* 五官整体跟随脸颊偏移，眼球、高光和眼皮各自保留微小反馈。 */}
+        <div className="mascot-static-face">
+          <i className="mascot-static-eye left"><span className="mascot-static-lid"><span className="mascot-static-pupil" /></span></i>
+          <i className="mascot-static-eye right"><span className="mascot-static-lid"><span className="mascot-static-pupil" /></span></i>
+          <span className="mascot-static-mouth" />
+        </div>
+        <span className="mascot-static-dent" />
       </div>
-      <i className="mascot-static-foot left" style={partStyle(FALLBACK.parts['foot-left'])} />
-      <i className="mascot-static-foot right" style={partStyle(FALLBACK.parts['foot-right'])} />
+      <span className="mascot-limb mascot-foot-rig left" style={partStyle(FALLBACK.parts['foot-left'])}><i className="mascot-static-foot left" /></span>
+      <span className="mascot-limb mascot-foot-rig right" style={partStyle(FALLBACK.parts['foot-right'])}><i className="mascot-static-foot right" /></span>
       <span className="mascot-fallback-spark">✧</span>
-    </div></div>
+      <span className="mascot-soft-mark left" /><span className="mascot-soft-mark right" />
+    </div></div></div></div>
   </div>;
 }

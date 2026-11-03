@@ -4,8 +4,11 @@
   --mascot-tool-hit: 36px;
   --mascot-tool-gap: 4px;
   --mascot-tool-text: 14px;
-  --mascot-return-time: 460ms;
-  --mascot-elastic: cubic-bezier(.22, 1.45, .43, 1);
+  --mascot-return-time: 620ms;
+  --mascot-elastic: cubic-bezier(.2, 1.6, .36, 1);
+  --mascot-follow-time: 38ms;
+  --mascot-hang-time: 690ms;
+  --mascot-limb-return: 780ms;
   --mascot-face-ink: #33473d;
   --mascot-blush: #dba79e;
   position: relative;
@@ -49,66 +52,96 @@
 .mascot-tools-menu button:hover, .mascot-tools-menu button[aria-pressed='true'] { background: #e7f0e9; color: var(--ink, #233d35); }
 .mascot-tools-menu button svg { width: 16px; height: 16px; }
 
-/* CSS后备沿用相同头部、脸颊、眼球和手脚层级，手势可直接改变局部形状。 */
+/* 后备图以抓点、弹性姿态、局部皮肤分层；初始几何仍与公开命中函数完全一致。 */
 .mascot-fallback { position: absolute; inset: 0; pointer-events: none; --fb-eye-open: 1; --fb-cheek-opacity: .34; }
-/* 首帧与测量后的左上坐标一致，只有实际拖拽参与回弹过渡，避免命中区域先于角色到位。 */
-.mascot-fallback-rig { position: absolute; left: var(--fb-left, calc(50% - min(70cqw, 80cqh) / 2)); top: var(--fb-top, calc(49% - min(70cqw, 80cqh) / 1.03 / 2)); width: var(--fb-width, min(70cqw, 80cqh)); height: var(--fb-height, auto); aspect-ratio: 1.03; transform: translate(var(--fb-drag-x, 0px), var(--fb-drag-y, 0px)); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+.mascot-fallback-rig, .mascot-fallback-ground { position: absolute; left: var(--fb-left, calc(50% - min(70cqw, 80cqh) / 2)); top: var(--fb-top, calc(49% - min(70cqw, 80cqh) / 1.03 / 2)); width: var(--fb-width, min(70cqw, 80cqh)); height: var(--fb-height, auto); aspect-ratio: 1.03; }
+/* 左上坐标不参与入场动画，只有真实拖拽变换参与松手回弹，避免首帧命中漂移。 */
+.mascot-fallback-rig { transform: translate(var(--fb-drag-x, 0px), var(--fb-drag-y, 0px)); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
 .mascot-fallback[data-gesture='drag'] .mascot-fallback-rig { transition: none; }
-.mascot-fallback-pose { position: relative; width: 100%; height: 100%; transform: scale(var(--fb-body-x, 1), var(--fb-body-y, 1)); transform-origin: 50% 72%; transition: transform 200ms ease; }
-.mascot-static-shadow { position: absolute; z-index: -2; left: 16%; bottom: -6%; width: 68%; height: 7%; border-radius: 50%; background: #36564014; filter: blur(7px); }
+.mascot-fallback-suspension, .mascot-fallback-pose, .mascot-fallback-breath { position: relative; width: 100%; height: 100%; }
+.mascot-fallback-suspension { transform-origin: var(--fb-grip-x, 50%) var(--fb-grip-y, 50%); transform: rotate(var(--fb-drag-tilt, 0deg)); transition: transform var(--mascot-limb-return) var(--mascot-elastic); }
+.mascot-fallback-pose { transform: scale(var(--fb-body-x, 1), var(--fb-body-y, 1)); transform-origin: 50% 72%; transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+.mascot-fallback[data-gesture='drag'] .mascot-fallback-suspension, .mascot-fallback:not([data-gesture='idle']) .mascot-fallback-pose { transition-duration: var(--mascot-follow-time); transition-timing-function: linear; }
+.mascot-static-shadow { position: absolute; left: 16%; bottom: -6%; width: 68%; height: 7%; border-radius: 50%; background: #36564014; filter: blur(7px); opacity: var(--fb-shadow-opacity, 1); transform: scale(var(--fb-shadow-scale, 1)); transition: transform 320ms ease, opacity 320ms ease; }
 .mascot-static-body { position: relative; z-index: 1; width: 100%; height: 100%; border-radius: 48% 50% 46% 48%; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; box-shadow: inset 16px 15px 25px #ffffff78, inset -10px -12px 28px #80957d10; }
-.mascot-static-crown { position: absolute; z-index: 0; left: 12%; top: 1%; width: 76%; height: 37%; border-radius: 50%; background: var(--sculpture-color, #f3eee0); box-shadow: inset 0 9px 14px #ffffff24; transform-origin: 50% 100%; transform: translateY(var(--fb-head-y, 0%)) scaleY(var(--fb-head-scale, 1)); transition: transform 140ms ease; }
-.mascot-static-hand, .mascot-static-foot { position: absolute; display: block; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; border-radius: 50%; box-shadow: inset 3px 3px 7px #ffffff45; }
-.mascot-static-hand { z-index: 0; transform-origin: 50% 50%; }
-.mascot-static-hand.left { transform: rotate(var(--fb-rest-angle, 18deg)); }
-.mascot-static-hand.right { transform: rotate(var(--fb-rest-angle, -18deg)); }
-.mascot-static-foot { z-index: 2; box-shadow: inset 2px 2px 5px #ffffff45, 0 2px 3px #687e6b08; }
+.mascot-static-crown { position: absolute; z-index: 0; left: 12%; top: 1%; width: 76%; height: 37%; border-radius: 50%; background: var(--sculpture-color, #f3eee0); box-shadow: inset 0 9px 14px #ffffff24; transform-origin: 50% 100%; transform: translateY(var(--fb-head-y, 0%)) scaleY(var(--fb-head-scale, 1)); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+.mascot-fallback[data-gesture='pat'] .mascot-static-crown { transition-duration: 90ms; }
+
+/* 肢体外层保存几何，内层独立摆动；拖起时小脚交错悬晃，身体仍跟着抓点。 */
+.mascot-limb { position: absolute; display: block; transform: rotate(var(--fb-rest-angle, 0deg)); }
+.mascot-hand-rig { z-index: 0; }
+.mascot-foot-rig { z-index: 2; }
+.mascot-static-hand, .mascot-static-foot { position: absolute; inset: 0; display: block; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; border-radius: 50%; box-shadow: inset 3px 3px 7px #ffffff45; transform: rotate(0deg); transition: transform var(--mascot-limb-return) var(--mascot-elastic); }
+.mascot-static-hand { transform-origin: 50% 22%; }
+.mascot-static-foot { transform-origin: 50% 10%; box-shadow: inset 2px 2px 5px #ffffff45, 0 2px 3px #687e6b08; }
+.mascot-fallback[data-gesture='drag'] .mascot-static-hand.left { transform: rotate(20deg) translateY(13%); }
+.mascot-fallback[data-gesture='drag'] .mascot-static-hand.right { transform: rotate(-20deg) translateY(13%); }
+.mascot-fallback[data-gesture='drag'] .mascot-static-foot { animation: mascot-hanging-foot var(--mascot-hang-time) ease-in-out infinite alternate; }
+.mascot-fallback[data-gesture='drag'] .mascot-static-foot.right { animation-direction: alternate-reverse; animation-delay: -210ms; }
+.mascot-fallback[data-gesture='pat'] .mascot-static-hand.left { transform: rotate(-10deg) translateY(-4%); }
+.mascot-fallback[data-gesture='pat'] .mascot-static-hand.right { transform: rotate(10deg) translateY(-4%); }
+
+/* 局部皮肤向外拉长，腮红随之变形；两侧独立回弹，连接处不出现线条或接缝。 */
 .mascot-cheek-patch { position: absolute; z-index: 1; top: 34%; width: 32%; height: 37%; border-radius: 50%; background: var(--sculpture-color, #f3eee0); transition: transform var(--mascot-return-time) var(--mascot-elastic); }
-.mascot-cheek-patch.left { left: 1%; transform-origin: 100% 50%; transform: translate(var(--fb-cheek-left-x, 0px), var(--fb-cheek-left-y, 0px)) scaleX(var(--fb-cheek-left-scale, 1)); }
-.mascot-cheek-patch.right { right: 1%; transform-origin: 0% 50%; transform: translate(var(--fb-cheek-right-x, 0px), var(--fb-cheek-right-y, 0px)) scaleX(var(--fb-cheek-right-scale, 1)); }
-.mascot-fallback[data-gesture='pinch'] .mascot-cheek-patch { transition: transform 50ms linear; }
-.mascot-static-cheek { display: block; position: absolute; top: 42%; width: 40%; height: 15%; border-radius: 50%; background: var(--mascot-blush); opacity: var(--fb-cheek-opacity); }
+.mascot-cheek-patch.left { left: 1%; transform-origin: 100% 50%; transform: translate(var(--fb-cheek-left-x, 0px), var(--fb-cheek-left-y, 0px)) scale(var(--fb-cheek-left-scale, 1), var(--fb-cheek-left-slim, 1)); }
+.mascot-cheek-patch.right { right: 1%; transform-origin: 0% 50%; transform: translate(var(--fb-cheek-right-x, 0px), var(--fb-cheek-right-y, 0px)) scale(var(--fb-cheek-right-scale, 1), var(--fb-cheek-right-slim, 1)); }
+.mascot-fallback[data-gesture='pinch'] .mascot-cheek-patch { transition: transform var(--mascot-follow-time) linear; }
+.mascot-static-cheek { display: block; position: absolute; top: 42%; width: 40%; height: 15%; border-radius: 50%; background: var(--mascot-blush); opacity: var(--fb-cheek-opacity); transition: opacity 180ms ease; }
 .mascot-cheek-patch.left .mascot-static-cheek { right: 0; }
 .mascot-cheek-patch.right .mascot-static-cheek { left: 0; }
 
-/* 注视单独移动眼球和高光，不用整体摇头假装眼神跟随。 */
-.mascot-static-eye { position: absolute; z-index: 3; top: 37%; width: 6.6%; height: 9%; border-radius: 48%; transform-origin: 50% 50%; }
-.mascot-static-eye.left { left: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-cheek-left-x, 0px) * .14), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px))) scaleY(var(--fb-eye-open)); }
-.mascot-static-eye.right { right: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-cheek-right-x, 0px) * .14), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px))) scaleY(var(--fb-eye-open)); }
+/* 五官一起歪向被捏的脸颊，眼球与高光仍能注视；单独眼皮负责自然眨眼。 */
+.mascot-static-face { position: absolute; z-index: 3; inset: 0; transform: translate(var(--fb-face-x, 0px), var(--fb-face-y, 0px)) rotate(var(--fb-face-tilt, 0deg)); transform-origin: 50% 46%; transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+.mascot-fallback[data-gesture='pinch'] .mascot-static-face, .mascot-fallback[data-gesture='pat'] .mascot-static-face { transition-duration: var(--mascot-follow-time); transition-timing-function: linear; }
+.mascot-static-eye { position: absolute; top: 37%; width: 6.6%; height: 9%; border-radius: 48%; transform-origin: 50% 50%; transition: transform var(--mascot-return-time) var(--mascot-elastic); }
+.mascot-static-eye.left { left: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-x, 0px)), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-y, 0px))) scaleY(var(--fb-eye-open)); }
+.mascot-static-eye.right { right: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-x, 0px)), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-y, 0px))) scaleY(var(--fb-eye-open)); }
+.mascot-fallback[data-gesture='pinch'] .mascot-static-eye { transition: transform var(--mascot-follow-time) linear; }
+.mascot-static-lid { position: absolute; inset: 0; display: block; border-radius: inherit; }
 .mascot-static-pupil { position: absolute; inset: 0; display: block; border-radius: inherit; background: var(--mascot-face-ink); transform: translate(calc(var(--fb-gaze-x, 0) * 9%), calc(var(--fb-gaze-y, 0) * 8%)); }
 .mascot-static-pupil::after { content: ''; position: absolute; top: 17%; left: 17%; width: 33%; height: 28%; border-radius: 50%; background: #fffdf5; transform: translate(calc(var(--fb-gaze-x, 0) * -25%), calc(var(--fb-gaze-y, 0) * -20%)); }
-.mascot-static-mouth { position: absolute; z-index: 3; left: 43%; top: 53%; width: 14%; height: 10%; border: 2px solid var(--mascot-face-ink); border-top: 0; border-radius: 0 0 50% 50%; transform: translateX(calc(var(--fb-gaze-x, 0) * 1.5px)); }
+.mascot-static-mouth { position: absolute; left: 43%; top: 53%; width: 14%; height: 10%; border: 2px solid var(--mascot-face-ink); border-top: 0; border-radius: 0 0 50% 50%; transform: translateX(calc(var(--fb-gaze-x, 0) * 1.5px)); transition: width 180ms ease, height 180ms ease, border-radius 180ms ease; }
 .mascot-static-dent { position: absolute; z-index: 4; left: var(--fb-touch-x, 50%); top: var(--fb-touch-y, 50%); width: 18%; height: 16%; border-radius: 50%; box-shadow: inset 3px 4px 7px #64765f16, 2px 2px 5px #fff8; opacity: 0; transform: translate(-50%, -50%); transition: opacity 120ms ease; }
 .mascot-fallback[data-gesture='poke'] .mascot-static-dent { opacity: .8; }
 .mascot-fallback-spark { position: absolute; z-index: 4; right: -11%; top: 18%; color: #c8ac73; font-size: 28px; opacity: 0; }
+.mascot-soft-mark { position: absolute; top: 27%; width: 3%; height: 7%; border-top: 2px solid #c7b08b; border-bottom: 2px solid #c7b08b; opacity: 0; }
+.mascot-soft-mark.left { left: -7%; transform: rotate(-25deg); }
+.mascot-soft-mark.right { right: -7%; transform: rotate(25deg); }
 
-/* 静态表情与持续手势可组合；减少动态时仍保留清楚的眼睛、嘴型和局部按压。 */
+/* 摸头抬脸、眯眼享受；挠痒用真正的笑眼与张嘴，减少动态时仍能看清反馈。 */
 .mascot-face-soft .mascot-static-mouth { top: 55%; height: 5%; width: 12%; left: 44%; }
 .mascot-face-curious .mascot-static-mouth { width: 7%; left: 46.5%; height: 8%; border-top: 2px solid var(--mascot-face-ink); border-radius: 50%; }
 .mascot-face-wink .mascot-static-eye.left { --fb-eye-open: .16; }
 .mascot-face-sleepy { --fb-eye-open: .25; }
 .mascot-face-sleepy .mascot-static-mouth { top: 57%; height: 0; border-bottom: 0; border-top: 2px solid var(--mascot-face-ink); }
 .mascot-face-shy { --fb-cheek-opacity: .57; }
-.mascot-fallback[data-gesture='pat'] { --fb-eye-open: .6; }
-.mascot-fallback[data-gesture='tickle'], .mascot-fallback[data-reaction='tickle'] { --fb-eye-open: .63; --fb-cheek-opacity: .55; }
-.mascot-fallback[data-gesture='tickle'] .mascot-static-mouth, .mascot-fallback[data-reaction='tickle'] .mascot-static-mouth { left: 41%; top: 51%; width: 18%; height: 13%; }
-.mascot-fallback[data-gesture='pinch'][data-region='cheek-left'] .mascot-static-eye.left, .mascot-fallback[data-gesture='pinch'][data-region='cheek-right'] .mascot-static-eye.right { --fb-eye-open: .7; }
+.mascot-fallback:is([data-gesture='pat'], [data-reaction='pat']) { --fb-eye-open: .75; --fb-cheek-opacity: .46; }
+.mascot-fallback:is([data-gesture='tickle'], [data-reaction='tickle']) { --fb-eye-open: .85; --fb-cheek-opacity: .62; }
+.mascot-fallback:is([data-gesture='pat'], [data-reaction='pat'], [data-gesture='tickle'], [data-reaction='tickle']) .mascot-static-lid { top: 24%; height: 70%; border-top: 2px solid var(--mascot-face-ink); border-radius: 50% 50% 0 0; animation: none; }
+.mascot-fallback:is([data-gesture='pat'], [data-reaction='pat'], [data-gesture='tickle'], [data-reaction='tickle']) .mascot-static-pupil { opacity: 0; }
+.mascot-fallback:is([data-gesture='pat'], [data-reaction='pat']) .mascot-static-mouth { left: 43%; top: 54%; width: 14%; height: 8%; border-top: 0; border-bottom: 2px solid var(--mascot-face-ink); border-radius: 0 0 50% 50%; }
+.mascot-fallback:is([data-gesture='tickle'], [data-reaction='tickle']) .mascot-static-mouth { overflow: hidden; left: 41%; top: 51%; width: 18%; height: 14%; border: 0; border-radius: 35% 35% 50% 50%; background: var(--mascot-face-ink); }
+.mascot-fallback:is([data-gesture='tickle'], [data-reaction='tickle']) .mascot-static-mouth::after { content: ''; position: absolute; left: 22%; bottom: -9%; width: 65%; height: 48%; border-radius: 50%; background: #d6aaa0; }
+.mascot-fallback:is([data-gesture='pat'], [data-reaction='pat'], [data-gesture='tickle'], [data-reaction='tickle']) .mascot-soft-mark { opacity: .65; }
+.mascot-fallback[data-gesture='pinch'][data-region='cheek-left'] .mascot-static-eye.left, .mascot-fallback[data-gesture='pinch'][data-region='cheek-right'] .mascot-static-eye.right { --fb-eye-open: .72; }
 
-/* 松手回弹分配到局部和整体不同层级，避免累积拉伸或所有操作都只切换嘴型。 */
-.mascot-fallback[data-reaction='poke'] .mascot-fallback-pose, .mascot-fallback[data-reaction='pinch'] .mascot-fallback-pose, .mascot-fallback[data-reaction='drag'] .mascot-fallback-pose { animation: mascot-jelly 650ms ease-out both; }
-.mascot-fallback[data-reaction='pat'] .mascot-static-crown { animation: mascot-head-soften 650ms ease-out both; }
+/* 回弹逐次衰减，松手后身体、头部、脚尖各用不同节奏，避免机械同步。 */
+.mascot-fallback[data-reaction='poke'] .mascot-fallback-pose, .mascot-fallback[data-reaction='pinch'] .mascot-fallback-pose, .mascot-fallback[data-reaction='drag'] .mascot-fallback-pose { animation: mascot-jelly 780ms ease-out both; }
+.mascot-fallback[data-reaction='pat'] .mascot-static-crown { animation: mascot-head-soften 740ms ease-out both; }
 .mascot-fallback[data-reaction='tickle'] .mascot-fallback-pose, .mascot-fallback[data-gesture='tickle'] .mascot-fallback-pose { animation: mascot-giggle 720ms ease-in-out both; }
-.mascot-fallback[data-reaction='wave'] .mascot-static-hand.right { animation: mascot-high-five 820ms ease-in-out both; }
-.mascot-fallback[data-reaction='wave'] .mascot-fallback-spark { animation: mascot-spark 820ms ease-out both; }
-.mascot-fallback[data-reaction='bounce'] .mascot-fallback-pose { animation: mascot-hop 760ms ease-out both; }
+.mascot-fallback[data-gesture='tickle'] .mascot-fallback-pose { animation-iteration-count: infinite; }
+.mascot-fallback[data-reaction='wave'] .mascot-static-hand.right { animation: mascot-high-five 920ms ease-in-out both; }
+.mascot-fallback[data-reaction='wave'] .mascot-fallback-spark { animation: mascot-spark 920ms ease-out both; }
+.mascot-fallback[data-reaction='bounce'] .mascot-fallback-pose { animation: mascot-hop 840ms ease-out both; }
 .mascot-fallback[data-reaction='shake'] .mascot-fallback-pose { animation: mascot-giggle 620ms ease-in-out both; }
 .mascot-fallback:not([data-gesture='idle']):not([data-gesture='tickle']) .mascot-fallback-pose { animation: none; }
-@keyframes mascot-jelly { 0% { transform: scale(1, 1); } 24% { transform: scale(1.055, .94); } 48% { transform: scale(.97, 1.035); } 72% { transform: scale(1.015, .985); } 100% { transform: scale(1, 1); } }
-@keyframes mascot-head-soften { 0%, 100% { transform: translateY(0) scaleY(1); } 35% { transform: translateY(4%) scaleY(.92); } 65% { transform: translateY(-1%) scaleY(1.02); } }
-@keyframes mascot-giggle { 0%, 100% { transform: rotate(0) scale(1, 1); } 18%, 54% { transform: rotate(-2.4deg) scale(1.015, .99); } 36%, 72% { transform: rotate(2.4deg) scale(.99, 1.015); } }
-@keyframes mascot-high-five { 0%, 100% { transform: rotate(-18deg); } 30% { transform: rotate(-84deg) translateY(-12%); } 55% { transform: rotate(-65deg) translateY(-12%); } 72% { transform: rotate(-85deg) translateY(-12%); } }
+@keyframes mascot-jelly { 0% { transform: scale(1, 1); } 18% { transform: scale(1.075, .92); } 37% { transform: scale(.96, 1.045); } 57% { transform: scale(1.027, .976); } 76% { transform: scale(.988, 1.012); } 100% { transform: scale(1, 1); } }
+@keyframes mascot-head-soften { 0%, 100% { transform: translateY(0) scaleY(1); } 26% { transform: translateY(5%) scaleY(.9); } 52% { transform: translateY(-1.5%) scaleY(1.025); } 76% { transform: translateY(.6%) scaleY(.99); } }
+@keyframes mascot-giggle { 0%, 100% { transform: rotate(0) scale(1, 1); } 15%, 48% { transform: rotate(-3deg) scale(1.025, .978); } 31%, 64% { transform: rotate(3deg) scale(.98, 1.025); } 82% { transform: rotate(-1deg) scale(1.01, .99); } }
+@keyframes mascot-hanging-foot { from { transform: rotate(-13deg) translateY(14%); } to { transform: rotate(16deg) translateY(30%); } }
+@keyframes mascot-high-five { 0%, 100% { transform: rotate(0deg); } 27% { transform: rotate(-66deg) translateY(-12%); } 48% { transform: rotate(-46deg) translateY(-12%); } 67% { transform: rotate(-68deg) translateY(-12%); } 83% { transform: rotate(8deg); } }
 @keyframes mascot-spark { 0%, 100% { opacity: 0; transform: scale(.7); } 35%, 60% { opacity: .8; transform: scale(1.1); } }
-@keyframes mascot-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 20% { transform: translateY(2%) scale(1.05, .95); } 48% { transform: translateY(-7%) scale(.98, 1.03); } 72% { transform: translateY(0) scale(1.025, .98); } }
+@keyframes mascot-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 18% { transform: translateY(2%) scale(1.08, .91); } 43% { transform: translateY(-8%) scale(.96, 1.05); } 67% { transform: translateY(0) scale(1.045, .96); } 84% { transform: scale(.985, 1.015); } }
 
 /* 手机工具保持40px命中高，但只占36px布局槽，原首屏保存位置不变。 */
 @media (max-width: 640px) {
