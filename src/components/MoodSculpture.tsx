@@ -137,7 +137,8 @@ export default function MoodSculpture({ mood = null, className = '' }: MoodSculp
   function reset() { care.reset(); controls.reset(); setMore(false); setMode('auto'); setBubble(null); setReaction(null); setExpression(baseExpression(mood)); sceneRef.current?.look(0, 0); if (reactionTimer.current) clearTimeout(reactionTimer.current); }
   const careExpression: MascotExpression = care.response ? ['asleep', 'drowsy'].includes(care.response.kind) ? 'sleepy' : care.response.kind === 'full' ? 'soft' : care.response.kind === 'wake' ? 'curious' : 'happy' : expression;
   const style = { '--sculpture-color': mood === null ? MASCOT_SETTINGS.neutralColor : MASCOT_SETTINGS.moodColors[mood] } as CSSProperties;
-  return <div ref={rootRef} className={`mood-sculpture ${ready ? 'is-ready' : 'is-fallback'} ${className}`} style={style} data-mode={mode} data-pet-activity={care.activity ?? 'none'} data-pet-response={care.response?.kind ?? 'idle'} data-gesture={controls.interaction?.kind ?? reaction ?? 'idle'} onKeyDown={event => { if (event.key === 'Escape') { setMore(false); setBubble(null); } }}>
+  // 阶段标签仅反映可见道具流程，方便核对空中抓取与咀嚼锁定，不存储用户行为。
+  return <div ref={rootRef} className={`mood-sculpture ${ready ? 'is-ready' : 'is-fallback'} ${className}`} style={style} data-mode={mode} data-pet-activity={care.activity ?? 'none'} data-pet-response={care.response?.kind ?? 'idle'} data-pet-phase={care.phase ?? 'ready'} data-gesture={controls.interaction?.kind ?? reaction ?? 'idle'} onKeyDown={event => { if (event.key === 'Escape') { setMore(false); setBubble(null); } }}>
     <div className="mascot-reply-space"><p className={`mascot-reply ${bubble ? 'is-visible' : ''}`} role="status" aria-live="polite" aria-atomic="true">{bubble?.text ?? ''}</p></div>
     <div className="mascot-visual-stage">
       <div ref={hostRef} className="mood-sculpture-canvas" aria-hidden="true" />
