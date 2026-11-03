@@ -19,8 +19,8 @@ interface Bubble { id: number; text: string; durationMs: number }
 /** 主工具只留四个短入口，其他小动作折叠；可调交互阈值统一来自内容配置。 */
 const MAIN_MODES: { mode: MascotMode; label: string }[] = [{ mode: 'auto', label: '随心' }, { mode: 'pinch', label: '捏脸' }, { mode: 'drag', label: '拽拽' }, { mode: 'pat', label: '摸摸' }];
 const CARE_ACTIVITIES = [{ kind: 'feed', label: '喂食', icon: Apple }, { kind: 'tease', label: '逗玩', icon: CircleDot }, { kind: 'sleep', label: '哄睡', icon: Moon }] as const;
-// 道具说明兼顾触屏、自由抛接和原生键盘操作。
-const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '拖动点心甩出喂食，空中也可再抓；轻触或回车递一口', tease: '拖动小球甩出逗玩，可空中再抓；轻触或回车递球', sleep: '慢慢摇动月亮哄睡，轻触或回车也可安抚' };
+// 道具说明兼顾触屏与键盘；小球点按换玩法，收势后留在掌心。
+const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '拖动点心甩出喂食，空中也可再抓；轻触或回车递一口', tease: '玩小球，轻触或回车换个玩法，也可以拖动小球', sleep: '慢慢摇动月亮哄睡，轻触或回车也可安抚' };
 const baseExpression = (mood: MoodScore | null): MascotExpression => mood !== null && mood <= 3 ? 'soft' : 'happy';
 
 /** 团子只读情绪来共情；任何鼠标、触屏或键盘动作都不选择评分或写入日记。 */
