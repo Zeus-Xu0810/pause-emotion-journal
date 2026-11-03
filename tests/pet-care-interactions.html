@@ -59,6 +59,10 @@
         quickShakeHoldMs: 380,
         gentleOffsetPx: 40,
         releaseRestMs: Math.max(100, FLIGHT.stationaryTailMs + 40),
+        flickDurationMs: 90,
+        flickDestination: { x: 0.3, y: 0.16 },
+        minimumFlightTravelPx: 6,
+        regrabAllowanceSizes: 1.5,
         bodyGrip: { x: 0.5, y: 0.72 },
         bodyDragPx: 28,
         boundsTolerancePx: 2,
@@ -284,6 +288,9 @@
           await fresh('tease'); expect(await activate('click') === 'play', '第一次逗球不是普通玩耍');
           for (let index = 1; index < TEST.maximumPlayActivations && response() !== 'excited'; index += 1) await activate('click');
           await expectResponse('excited');
+          await until(() => phase() === 'return', '接住后扔回小球');
+          expect(!prop().disabled, '扔回的小球被锁住，不能重抓');
+          expect(phaseTrail.includes('flight') && phaseTrail.includes('contact'), '逗球没有经过真实飞行和接触');
         }],
         ['慢摇月亮后再Enter安抚至熟睡，可以明确叫醒', async () => {
           await fresh('sleep'); await unlocked();
@@ -352,6 +359,36 @@
           pointer(node, 'pointermove', id, start); pointer(node, 'pointerup', id, start);
           await wait(TEST.quietMs); await frames();
           expect(response() === 'idle' && !responseTrail.includes('drowsy'), '快速摇动被计作安抚');
+        }],
+        ['左右手都能先接住点心，再从手中递到嘴边', async () => {
+          for (const side of ['left', 'right']) {
+            await fresh('feed'); await dragTo('.mascot-static-hand.' + side);
+            expect(phase() === 'contact', side + '手递食没有先停在接触阶段');
+            expect(prop().disabled, side + '手接稳食物时未锁住输入');
+            const food = center(prop()); const hand = center(mount.querySelector('.mascot-static-hand.' + side));
+            log('hand delivery', { side, phase: phase(), food, hand });
+            expect(Math.hypot(food.x - hand.x, food.y - hand.y) <= prop().getBoundingClientRect().width, '食物没有由' + side + '手接住');
+            await expectResponse('eat');
+            expect(phaseTrail.indexOf('contact') >= 0 && phaseTrail.indexOf('eating') > phaseTrail.indexOf('contact'), side + '手没有完成接住再进食的顺序');
+          }
+        }],
+        ['真实甩出的球能在空中重抓，位置不会跳回道具起点', async () => {
+          await fresh('tease'); await unlocked();
+          const node = prop(); const id = ++pointerSequence; const home = center(node); const board = stage().getBoundingClientRect();
+          const release = { x: board.left + board.width * TEST.flickDestination.x, y: board.top + board.height * TEST.flickDestination.y };
+          pointer(node, 'pointerdown', id, home);
+          await moveOver(node, id, home, release, TEST.flickDurationMs);
+          pointer(node, 'pointerup', id, release); lastActivationAt = performance.now();
+          await until(() => phase() === 'flight', '甩动后的真实飞行');
+          expect(shown(prop()) && !prop().disabled, '飞行中的球不能抓取');
+          const flying = center(prop());
+          expect(Math.hypot(flying.x - release.x, flying.y - release.y) >= TEST.minimumFlightTravelPx, '球没有沿惯性继续运动');
+          const regrab = prop(); const nextId = ++pointerSequence; const allowance = regrab.getBoundingClientRect().width * TEST.regrabAllowanceSizes;
+          pointer(regrab, 'pointerdown', nextId, flying); await until(() => phase() === 'held', '飞行中重新抓住');
+          const held = center(prop()); log('flight regrab', { home, release, flying, held, phases: phaseTrail });
+          expect(Math.hypot(held.x - flying.x, held.y - flying.y) <= allowance, '重抓后球跳离了刚才的飞行位置');
+          expect(!prop().disabled, '重新抓住时仍被输入锁挡住');
+          pointer(regrab, 'pointercancel', nextId, held); await frames();
         }],
       ];
 
