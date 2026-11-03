@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>团子稳定性诊断</title>
+  <style>
+    /* 只供本地诊断，产品组件和时钟保持原样；结果排在舞台后面避免挤动目标。 */
+    body.stability-fixture { margin: 0; padding: 16px; font-family: 'Pause Round', sans-serif; color: #294737; background: #f7f8f2; }
+    .stability-fixture main { max-width: 900px; margin: auto; }
+    .stability-fixture h1 { margin: 0 0 8px; font-size: 23px; }
+    .stability-fixture p { font-size: 14px; line-height: 1.65; }
+    .stability-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .stability-actions button { min-height: 42px; padding: 9px 16px; border: 1px solid #b5c7b0; border-radius: 14px; color: #294737; background: #e7eddf; cursor: pointer; }
+    .stability-actions label { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    #stability-mount { max-width: 660px; margin: 14px auto; border: 1px solid #dce5d6; border-radius: 24px; background: #fffef8; }
+    .stability-fixture #stability-mount .mood-sculpture { height: 496px; grid-template-rows: 52px 360px 84px; }
+    .stability-fixture #stability-mount .mascot-visual-stage { height: 360px; }
+    #stability-metrics, #stability-log { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-radius: 12px; background: #eaf0e5; font: 12px/1.55 ui-monospace, monospace; }
+    #stability-log { max-height: 460px; overflow: auto; }
+    #stability-results { font-size: 15px; line-height: 1.8; }
+    [data-result='pass'], #stability-status[data-status='passed'] { color: #276046; }
+    [data-result='fail'], #stability-status[data-status='failed'] { color: #ad3b31; }
+  </style>
+</head>
+<body class="stability-fixture"><main>
+  <h1>团子稳定性诊断</h1>
+  <p>真实组件，默认 WebGL。请将此标签带到 Chromium 前台；只观察公开 DOM 与原生 WebGL clear，不读 React 或场景私有状态。</p>
+  <div class="stability-actions">
+    <button id="run-stability" type="button">运行稳定性回归</button>
+    <label><input id="force-fallback" type="checkbox" />下一轮强制 CSS 后备</label>
+    <output id="stability-status" data-status="idle" aria-live="polite">尚未运行</output>
+  </div>
+  <div id="stability-mount"></div>
+  <p id="stability-current" role="status">可先直接操作团子，再运行回归。</p>
+  <p id="stability-raf">RAF 采样中…</p>
+  <pre id="stability-metrics">尚未采样</pre>
+  <ol id="stability-results" aria-live="polite"></ol>
+  <details open><summary>公开状态、绘制次数与调用栈</summary><pre id="stability-log"></pre></details>
+  <p>此页不连接账号或云服务。专用指针 ID ≥ 20000 使用捕获替身；其余指针保留原生 API。回归不会缩短动画或修改产品物理参数。</p>
+</main>
+<script type="module">
+  import React from 'react';
+  import { createRoot } from 'react-dom/client';
+  import MoodSculpture from '../src/components/MoodSculpture.tsx';
+  import { PET_CARE_SETTINGS as CARE } from '../src/lib/pet-care.ts';
+  import { PET_FLIGHT_SETTINGS as FLIGHT } from '../src/lib/pet-flight.ts';
+  import '../src/styles.css';
+
+  /** 诊断输入集中配置；宽松超时只用于等待真实阶段，不更改组件实际节奏。 */
+  const TEST = { pollMs: 25, bootMs: 350, baselineMs: 220, timeoutMs: 11000, quietMs: 1300, floorWatchMs: 5500, switches: 12,
+    switchGapMs: 55, sampleMs: 100, maximumStacks: 5, pointerMinimum: 20000, minimumBodyRatio: 0.6,
+    releaseRestMs: Math.max(100, FLIGHT.stationaryTailMs + 40), floorPoint: { x: 0.08, y: 0.87 } };
+  const mount = document.querySelector('#stability-mount');
+  const root = createRoot(mount);
+  const runButton = document.querySelector('#run-stability');
+  const forceBox = document.querySelector('#force-fallback');
+  const status = document.querySelector('#stability-status');
+  const current = document.querySelector('#stability-current');
+  const results = document.querySelector('#stability-results');
+  const logNode = document.querySelector('#stability-log');
+  const metricsNode = document.querySelector('#stability-metrics');
+  const rafNode = document.querySelector('#stability-raf');
+  forceBox.checked = new URLSearchParams(location.search).get('renderer') === 'fallback';
+  let forceFallback = forceBox.checked;
+  const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+    if (forceFallback && ['webgl', 'webgl2', 'experimental-webgl'].includes(kind)) return null;
+    return nativeGetContext.call(this, kind, ...args);
+  };
+
+  /** 只为合成指针提供捕获；真实用户的鼠标/触屏仍走浏览器原实现。 */
+  const captures = new WeakMap();
+  const nativeCapture = Element.prototype.setPointerCapture;
+  const nativeRelease = Element.prototype.releasePointerCapture;
+  const nativeHas = Element.prototype.hasPointerCapture;
+  Element.prototype.setPointerCapture = function (id) { if (id < TEST.pointerMinimum) return nativeCapture.call(this, id); const ids = captures.get(this) ?? new Set(); ids.add(id); captures.set(this, ids); };
+  Element.prototype.hasPointerCapture = function (id) { return id < TEST.pointerMinimum ? nativeHas.call(this, id) : Boolean(captures.get(this)?.has(id)); };
+  Element.prototype.releasePointerCapture = function (id) { if (id < TEST.pointerMinimum) return nativeRelease.call(this, id); if (captures.get(this)?.delete(id)) queueMicrotask(() => this.dispatchEvent(new PointerEvent('lostpointercapture', { pointerId: id, bubbles: true }))); };
+
+  let instance = 0; let pointerId = TEST.pointerMinimum; let frameId = 0; let drawDepth = 0; let lastRaf = null; let lastSample = 0;
+  let metrics = null; let running = false;
+  const errors = [];
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const expect = (condition, message) => { if (!condition) throw new Error(message); };
+  const log = (label, value = {}) => { logNode.textContent += label + ' ' + JSON.stringify(value) + '\n'; };
+  const sculpture = () => mount.querySelector('.mood-sculpture');
+  const prop = () => mount.querySelector('.mascot-care-target');
+  const phase = () => sculpture()?.dataset.petPhase ?? 'ready';
+  const response = () => sculpture()?.dataset.petResponse ?? 'idle';
+  const activity = () => sculpture()?.dataset.petActivity ?? 'none';
+  const reply = () => mount.querySelector('.mascot-reply')?.textContent.trim() ?? '';
+  const rendererMode = () => sculpture()?.classList.contains('is-ready') ? 'webgl' : 'fallback';
+  const center = node => { const box = node.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; };
+  function snapshot() {
+    const box = mount.querySelector('.mascot-touch-target')?.getBoundingClientRect();
+    return { at: performance.now(), renderer: rendererMode(), activity: activity(), phase: phase(), response: response(), text: reply(), disabled: prop()?.disabled ?? false,
+      body: box ? { x: box.left, y: box.top, width: box.width, height: box.height } : null };
+  }
+  function summary() {
+    if (!metrics) return {};
+    const passHistogram = {};
+    for (const [frame, count] of metrics.buckets) if (frame < frameId) passHistogram[count] = (passHistogram[count] ?? 0) + 1;
+    return { renderer: metrics.renderer, frames: metrics.frames, gpuClearPasses: metrics.draws, maximumPassesPerFrame: metrics.maximumDrawsPerFrame,
+      maximumClearDepth: metrics.maximumRenderDepth, baselinePasses: metrics.baselinePasses, passHistogram, refreshInsideAnimate: metrics.refreshInsideAnimate,
+      rendererChanges: metrics.rendererChanges, canvasChanges: metrics.canvasChanges, responseChanges: metrics.responses.length,
+      phaseChanges: metrics.phases.length, minimumBodyHeight: metrics.minimumBodyHeight, baselineBodyHeight: metrics.baseline?.body?.height,
+      runtimeErrors: errors.length - metrics.errorStart };
+  }
+  function begin() {
+    const base = snapshot();
+    metrics = { renderer: rendererMode(), baseline: base, canvas: mount.querySelector('canvas'), errorStart: errors.length,
+      frames: 0, draws: 0, maximumDrawsPerFrame: 0, maximumRenderDepth: 0, refreshInsideAnimate: 0,
+      rendererChanges: 0, canvasChanges: 0, responses: [], phases: [], buckets: new Map(), stacks: 0,
+      baselinePasses: null,
+      minimumBodyHeight: base.body?.height ?? Infinity, lastMode: rendererMode(), lastResponse: response(), lastPhase: phase() };
+    log('BEGIN', base);
+  }
+
+  /** Three的render是实例自有方法，因此包装公开WebGL原生通道；shadow/main多pass本身不是错误。 */
+  function traceClear(nativeClear, args) {
+    drawDepth += 1;
+    if (metrics) {
+      metrics.draws += 1; metrics.maximumRenderDepth = Math.max(metrics.maximumRenderDepth, drawDepth);
+      const count = (metrics.buckets.get(frameId) ?? 0) + 1; metrics.buckets.set(frameId, count); metrics.maximumDrawsPerFrame = Math.max(metrics.maximumDrawsPerFrame, count);
+      const stack = new Error('public WebGL clear trace').stack ?? '';
+      const mixed = stack.includes('refreshPet') && stack.includes('animate');
+      if (mixed) metrics.refreshInsideAnimate += 1;
+      if ((mixed || drawDepth > 1) && metrics.stacks++ < TEST.maximumStacks) log('DRAW anomaly', { frame: frameId, passes: count, depth: drawDepth, mixed, state: snapshot(), stack: stack.slice(0, 2200) });
+    }
+    try { return nativeClear.apply(this, args); } finally { drawDepth -= 1; }
+  }
+  // 先保存两种上下文的原实现，再安装包装，避免继承关系让同一clear被重复计数。
+  const clearHooks = [...new Set([globalThis.WebGLRenderingContext?.prototype, globalThis.WebGL2RenderingContext?.prototype].filter(Boolean))]
+    .map(prototype => ({ prototype, native: prototype.clear }));
+  for (const hook of clearHooks) if (typeof hook.native === 'function') hook.prototype.clear = function (...args) { return traceClear.call(this, hook.native, args); };
+  new MutationObserver(() => {
+    if (!metrics || !sculpture()) return;
+    const mode = rendererMode(); const canvas = mount.querySelector('canvas');
+    if (mode !== metrics.lastMode) { metrics.rendererChanges += 1; metrics.lastMode = mode; log('renderer change', snapshot()); }
+    if (canvas !== metrics.canvas) { metrics.canvasChanges += 1; metrics.canvas = canvas; log('canvas change', snapshot()); }
+    if (phase() !== metrics.lastPhase) { metrics.lastPhase = phase(); const sample = snapshot(); metrics.phases.push(sample); log('phase', sample); }
+    if (response() !== metrics.lastResponse) { metrics.lastResponse = response(); const sample = snapshot(); metrics.responses.push(sample); log('response', sample); }
+  }).observe(mount, { attributes: true, attributeFilter: ['class', 'data-pet-phase', 'data-pet-response'], childList: true, subtree: true });
+  function frame(at) {
+    frameId += 1;
+    if (lastRaf !== null) rafNode.textContent = '实际 RAF 间隔 ' + (at - lastRaf).toFixed(1) + 'ms；当前 ' + rendererMode();
+    lastRaf = at;
+    if (metrics) {
+      metrics.frames += 1;
+      if (at - lastSample >= TEST.sampleMs) {
+        const sample = snapshot();
+        if (sample.body) metrics.minimumBodyHeight = Math.min(metrics.minimumBodyHeight, sample.body.height);
+        metricsNode.textContent = JSON.stringify(summary(), null, 2); lastSample = at;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  window.addEventListener('error', event => { errors.push(event.message); log('ERROR', { message: event.message }); });
+  window.addEventListener('unhandledrejection', event => { const message = event.reason instanceof Error ? event.reason.message : String(event.reason); errors.push(message); log('REJECTION', { message }); });
+
+  async function until(predicate, label, timeout = TEST.timeoutMs) {
+    const began = performance.now();
+    while (true) { const result = predicate(); if (result) return result; if (performance.now() - began > timeout) throw new Error(label + '超时：' + JSON.stringify(snapshot())); await wait(TEST.pollMs); }
+  }
+  function click(node) { expect(Boolean(node), '缺少按钮'); expect(!node.disabled, '按钮被禁用'); node.click(); }
+  function careButton(kind) { const label = { feed: '喂食', tease: '逗玩', sleep: '哄睡' }[kind]; return [...mount.querySelectorAll('.mascot-care-toolbar button')].find(node => node.textContent.trim() === label); }
+  async function select(kind) { if (activity() !== kind) click(careButton(kind)); await until(() => activity() === kind && prop() && !prop().hidden && prop().getBoundingClientRect().width > 1, '选择玩法'); }
+  async function fresh(kind) {
+    metrics = null; forceFallback = forceBox.checked;
+    root.render(React.createElement(MoodSculpture, { key: ++instance, mood: null }));
+    await until(() => sculpture() && activity() === 'none' && (mount.querySelector('canvas') || mount.querySelector('.mascot-static-body')), '组件挂载');
+    mount.scrollIntoView({ block: 'center', behavior: 'instant' }); await wait(TEST.bootMs);
+    if (kind) await select(kind);
+    await wait(TEST.bootMs); begin(); await wait(TEST.baselineMs);
+    const completed = [...metrics.buckets].filter(([frame]) => frame < frameId).map(([, count]) => count).sort((a, b) => a - b);
+    metrics.baselinePasses = completed.length ? completed[Math.floor(completed.length / 2)] : null;
+    log('GPU baseline', summary());
+  }
+  function key(node, key) { node.dispatchEvent(new KeyboardEvent('keydown', { key, code: key, bubbles: true, cancelable: true })); }
+  function pointer(node, type, id, point) {
+    expect(node && !node.disabled, '指针不能操作禁用目标');
+    node.dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: 'mouse', button: 0, buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1,
+      isPrimary: true, clientX: point.x, clientY: point.y, bubbles: true, cancelable: true }));
+    if ((type === 'pointerup' || type === 'pointercancel') && node.hasPointerCapture(id)) node.releasePointerCapture(id);
+  }
+  function stableRenderer() {
+    expect(metrics.rendererChanges === 0 && metrics.canvasChanges === 0, '同一组件发生渲染器/画布替换');
+    expect(errors.length === metrics.errorStart, '运行期间出现错误');
+    if (metrics.renderer === 'webgl') {
+      expect(metrics.draws > 0, '未观察到WebGL clear，渲染通道未被实际采样');
+      expect(metrics.maximumRenderDepth <= 1, 'WebGL clear调用重入');
+      expect(metrics.refreshInsideAnimate === 0, 'animate中ACK又通过refreshPet混合绘制');
+    }
+  }
+  const cases = [
+    ['快速切换玩法不重建渲染器、不循环回应', async () => {
+      await fresh();
+      for (let index = 0; index < TEST.switches; index += 1) { await select(['feed', 'tease', 'sleep'][index % 3]); await wait(TEST.switchGapMs); }
+      await wait(TEST.quietMs);
+      expect(response() === 'idle' && !prop().disabled, '切换后残留忙碌或回应');
+      expect(metrics.responses.every(sample => sample.response === 'idle'), '仅选择玩法就触发照顾回应'); stableRenderer();
+    }],
+    ['哄睡点击后同一任务Escape能撤销尚未投递的ACK', async () => {
+      await fresh('sleep'); const node = prop(); node.focus({ preventScroll: true });
+      // 不await：Three的activate会先排队soothe；同任务的Escape必须让该次pending失效。
+      click(node); key(node, 'Escape'); await wait(0); await wait(TEST.quietMs);
+      expect(!metrics.responses.some(sample => sample.response === 'drowsy' || sample.response === 'asleep'), '取消前的事件仍被交给记忆模型');
+      expect(response() === 'idle' && !prop().disabled, '撤销后仍被照顾状态锁住'); stableRenderer();
+    }],
+    ['连续逗玩后停止输入，阶段和回应最终收敛', async () => {
+      await fresh('tease');
+      for (let index = 0; index < 3; index += 1) {
+        await until(() => prop() && !prop().hidden && !prop().disabled, '道具可操作');
+        const began = performance.now(); const oldText = reply(); click(prop());
+        await until(() => metrics.responses.find(sample => sample.at >= began && sample.response !== 'idle') ?? (response() !== 'idle' && reply() !== oldText ? snapshot() : null), '真实逗玩回应');
+        await wait(CARE.cooldownMs + TEST.pollMs);
+      }
+      await until(() => phase() === 'ready' && response() === 'idle' && prop() && !prop().disabled, '停止输入后收敛');
+      const count = metrics.responses.filter(sample => sample.response !== 'idle').length;
+      await wait(TEST.quietMs);
+      expect(metrics.responses.filter(sample => sample.response !== 'idle').length === count, '停止输入后仍自行重复触发回应'); stableRenderer();
+    }],
+    ['远处放球后观察5秒，身体不会持续缩远或漂离', async () => {
+      await fresh('tease'); const node = prop(); const id = ++pointerId; const start = center(node);
+      const board = mount.querySelector('.mascot-visual-stage').getBoundingClientRect();
+      const end = { x: board.left + board.width * TEST.floorPoint.x, y: board.top + board.height * TEST.floorPoint.y };
+      pointer(node, 'pointerdown', id, start); await wait(TEST.pollMs); pointer(node, 'pointermove', id, end); await wait(TEST.releaseRestMs); pointer(node, 'pointerup', id, end);
+      await wait(TEST.floorWatchMs);
+      const base = metrics.baseline.body; const now = snapshot(); log('floor pickup bounds', { baseline: base, current: now, minimumHeight: metrics.minimumBodyHeight });
+      expect(base && now.body && Number.isFinite(now.body.height) && metrics.minimumBodyHeight >= base.height * TEST.minimumBodyRatio, '抛空追捡导致身体持续缩远');
+      expect(now.body.width > 0 && now.body.height > 0, '角色目标框丢失'); stableRenderer();
+    }],
+    ['playing中的球可以拿走，编排不会与新抓取争抢', async () => {
+      await fresh('tease'); click(prop());
+      await until(() => phase() === 'playing' && prop() && !prop().hidden, '球进入可拿走的编排阶段');
+      expect(!prop().disabled, 'playing中的球被禁用');
+      const node = prop(); const id = ++pointerId; const point = center(node);
+      pointer(node, 'pointerdown', id, point); await until(() => phase() === 'held', '拿走编排中的球');
+      await wait(TEST.baselineMs); expect(phase() === 'held', '编排抢回了已拿走的球');
+      pointer(node, 'pointercancel', id, center(node));
+      await until(() => !['contact', 'eating', 'responding', 'playing', 'held'].includes(phase()) && !prop().disabled, '取消抓取后解除编排');
+      stableRenderer();
+    }],
+  ];
+  async function run() {
+    if (running) return; running = true; runButton.disabled = true; forceBox.disabled = true;
+    status.dataset.status = 'running'; status.textContent = '运行中…'; results.replaceChildren(); logNode.textContent = '';
+    let passed = 0;
+    for (let index = 0; index < cases.length; index += 1) {
+      const [label, execute] = cases[index]; const row = document.createElement('li'); row.dataset.result = 'running'; row.textContent = '运行 · ' + label; results.append(row); current.textContent = (index + 1) + '/' + cases.length + ' · ' + label;
+      try { await execute(); passed += 1; row.dataset.result = 'pass'; row.textContent = 'PASS · ' + label; }
+      catch (error) { row.dataset.result = 'fail'; row.textContent = 'FAIL · ' + label + '：' + (error instanceof Error ? error.message : String(error)); }
+      log('CASE summary', { label, ...summary() }); metrics = null;
+    }
+    status.dataset.status = passed === cases.length ? 'passed' : 'failed'; status.textContent = (passed === cases.length ? 'PASS' : 'FAIL') + ' · ' + passed + '/' + cases.length;
+    current.textContent = '完成。请结合实际renderer、RAF间隔及DRAW anomaly调用栈判断。'; running = false; runButton.disabled = false; forceBox.disabled = false;
+  }
+  runButton.addEventListener('click', () => { void run(); });
+  await fresh(); metrics = null;
+</script>
+</body></html>
