@@ -216,13 +216,15 @@
 .mascot-fallback[data-pet-response='wake'] .mascot-fallback-suspension { animation: mascot-pet-wake var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { animation: mascot-pet-stretch-left var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { animation: mascot-pet-stretch-right var(--pet-response-time) ease-in-out both; }
-/* 球独立于吃饭：小手托住转动、轻点头拍地、双手交替迎接，所有位移只占掌宽一小部分。 */
+/* 五套球玩法与吃饭独立：掌心轻拍、转圈、传球、捏软球、平衡；收势后托球等待点击。 */
 .mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-hand-rig { z-index: 4; }
 .mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand { animation: none; transition: none; }
-.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.left { transform: translate(calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-x)), calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-angle) * -1)); }
-.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.right { transform: translate(calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-x) * -1), calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-angle))); }
-.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='dribble'] .mascot-fallback-suspension { animation: none; transform: translateY(calc(var(--pet-ball-dribble, 0) * 1.2%)) rotate(calc(var(--pet-ball-dribble, 0) * 1.5deg)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.left { transform: translate(calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-x)), calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-left, 0) * (var(--mascot-ball-cup-angle) + var(--pet-ball-squeeze, 0) * 8deg + var(--pet-ball-balance, 0) * 10deg) * -1)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.right { transform: translate(calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-x) * -1), calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-right, 0) * (var(--mascot-ball-cup-angle) + var(--pet-ball-squeeze, 0) * 8deg + var(--pet-ball-balance, 0) * 10deg))); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='tap'] .mascot-fallback-suspension { animation: none; transform: translateY(calc(var(--pet-ball-dribble, 0) * 1.2%)) rotate(calc(var(--pet-ball-dribble, 0) * 1.5deg)); }
 .mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='spin'] .mascot-static-face { transform: translateY(calc(var(--pet-ball-spin, 0) * -0.8%)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='squeeze'] .mascot-static-face { transform: translateY(calc(var(--pet-ball-squeeze, 0) * 0.7%)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='balance'] .mascot-fallback-suspension { animation: none; transform: rotate(calc(var(--pet-ball-balance, 0) * 1.8deg)); }
 /* 月亮摇得太快时短暂抬脸好奇，不增加安抚次数；减少动态时也保留同一静态表情。 */
 .mascot-fallback[data-pet-alert='true'] .mascot-static-face { animation: none; transform: translateY(-1%) rotate(5deg); }
 .mascot-fallback[data-pet-alert='true'] .mascot-static-eye { --fb-eye-open: 1; }

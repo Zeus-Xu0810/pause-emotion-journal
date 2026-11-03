@@ -148,7 +148,7 @@ interface CareMotion {
   stage: 'deliver' | 'hand' | 'mouth' | 'eat' | 'ball' | 'wake' | null;
   elapsed: number; duration: number; clock: number; ignoreUntil: number; responseId: number | null; variant: number; alertUntil: number;
   hand: CareHand; ballHand: CareHand; ballSample: PetBallPlaySample | null;
-  from: PetPoint; grip: { at: number; point: PetPoint; travel: number } | null;
+  from: PetPoint; grip: { at: number; point: PetPoint; travel: number; wasCradled: boolean } | null;
 }
 interface FallbackCareOptions {
   root: ElementRef<HTMLDivElement>; mouth: ElementRef<HTMLSpanElement>;
@@ -207,6 +207,7 @@ function useFallbackCare(options: FallbackCareOptions) {
     };
     const respond = (response: PetResponse) => {
       const state = motion.current; if (!state || response.id === state.responseId) return;
+      state.from = { x: state.flight.x, y: state.flight.y };
       state.responseId = response.id; state.variant = response.variant; state.alertUntil = 0; state.elapsed = 0; state.duration = response.durationMs / 1000; state.grip = null;
       if (response.kind === 'eat') { state.stage = 'eat'; state.eligible = false; setMotionPhase(state, 'eating'); }
       else if (response.kind === 'play' || response.kind === 'excited' || response.kind === 'tired') { state.stage = 'ball'; state.ballHand = state.hand; state.ballSample = null; state.eligible = false; setMotionPhase(state, 'contact'); }
@@ -218,6 +219,7 @@ function useFallbackCare(options: FallbackCareOptions) {
     const emit = (state: CareMotion, kind: PetEventKind) => {
       const rejected = () => {
         if (activity === 'sleep') { state.stage = null; state.eligible = false; setPosition(state, home); setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready'); }
+        else if (activity === 'tease') { state.stage = 'ball'; state.elapsed = Math.max(state.duration, 1); state.ballSample = samplePetBallPlay(1, state.variant, state.ballHand); state.eligible = false; setMotionPhase(state, 'cradled'); }
         else throwBack(state);
       };
       if (!latest.current.onEvent) { rejected(); return; }
@@ -249,14 +251,17 @@ function useFallbackCare(options: FallbackCareOptions) {
     const input = (next: PetInput) => {
       const state = motion.current; if (!state) return;
       if (next.type === 'cancel') {
+        if (activity === 'tease' && (state.grip?.wasCradled || state.stage === 'ball')) { state.stage = 'ball'; state.grip = null; state.eligible = false; state.elapsed = Math.max(state.duration, 1); state.ballSample = samplePetBallPlay(1, state.variant, state.ballHand); setMotionPhase(state, 'cradled'); return; }
         state.stage = null; state.ballSample = null; state.grip = null; state.eligible = false; state.scale = 1;
         if (activity === 'sleep') { setPosition(state, home); setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready'); }
         else { state.flight = createPetFlight(state.flight, { x: 0, y: 0 }); setMotionPhase(state, 'return'); }
         return;
       }
       if (next.type === 'activate') {
+        const fromPalm = activity === 'tease' && (state.stage === 'ball' || state.grip?.wasCradled);
         state.grip = null; state.stage = null; state.ballSample = null; state.eligible = true; state.scale = 1;
         if (activity === 'sleep') { emit(state, 'soothe'); return; }
+        if (fromPalm) { emit(state, 'catch'); return; }
         const target = anchors();
         const side = Math.hypot(target.left.x - state.flight.x, target.left.y - state.flight.y) < Math.hypot(target.right.x - state.flight.x, target.right.y - state.flight.y) ? 'left' : 'right';
         chooseHand(state, side); state.stage = 'deliver'; state.elapsed = 0; state.scale = 1; state.eligible = true; state.ignoreUntil = state.clock;
@@ -264,7 +269,7 @@ function useFallbackCare(options: FallbackCareOptions) {
         state.from = { x: state.flight.x, y: state.flight.y }; state.flight = createPetFlight(state.flight, { x: 0, y: 0 });
         setMotionPhase(state, 'flight'); return;
       }
-      if (next.type === 'start') { state.stage = null; state.ballSample = null; state.eligible = true; state.scale = 1; state.grip = { at: performance.now(), point: next.point ?? state.flight, travel: 0 }; state.flight.vx = 0; state.flight.vy = 0; setMotionPhase(state, 'held'); }
+      if (next.type === 'start') { const wasCradled = state.stage === 'ball'; state.stage = null; state.ballSample = null; state.eligible = true; state.scale = 1; state.grip = { at: performance.now(), point: next.point ?? state.flight, travel: 0, wasCradled }; state.flight.vx = 0; state.flight.vy = 0; setMotionPhase(state, 'held'); }
       const previousPoint = { x: state.flight.x, y: state.flight.y };
       if (next.point) {
         if (state.grip) { state.grip.travel += Math.hypot(next.point.x - state.grip.point.x, next.point.y - state.grip.point.y); state.grip.point = next.point; }
@@ -289,11 +294,11 @@ function useFallbackCare(options: FallbackCareOptions) {
     };
     controller.current = { input, respond };
 
-    // 只有RAF写球的姿态/压扁变量；每次拿走或抛回都恢复，避免旧编排继续控制手掌。
+    // 只有RAF写球的姿态与压扁变量；拿走即恢复，掌心等候则保留最后的托球手。
     const ballPose = (sample: PetBallPlaySample | null) => {
       root.dataset.petBallPattern = sample?.pattern ?? 'none';
       root.style.setProperty('--pet-squash-x', String(sample?.ball.scaleX ?? 1)); root.style.setProperty('--pet-squash-y', String(sample?.ball.scaleY ?? 1));
-      for (const key of ['left', 'right', 'spin', 'dribble', 'pass'] as const) root.style.setProperty(`--pet-ball-${key}`, String(sample?.pose[key] ?? 0));
+      for (const key of ['left', 'right', 'spin', 'dribble', 'pass', 'squeeze', 'balance'] as const) root.style.setProperty(`--pet-ball-${key}`, String(sample?.pose[key] ?? 0));
     };
     const advance = (state: CareMotion, delta: number) => {
       state.clock += delta; state.elapsed += delta;
@@ -319,17 +324,18 @@ function useFallbackCare(options: FallbackCareOptions) {
         else { setPosition(state, home); state.scale = clamp((amount - FALLBACK.care.mealRegrowStart) / (1 - FALLBACK.care.mealRegrowStart), 0, 1); }
         if (amount >= 1) { state.stage = null; state.scale = 1; setPosition(state, home); setMotionPhase(state, 'ready'); }
       } else if (state.stage === 'ball') {
-        const sample = samplePetBallPlay(state.elapsed / Math.max(0.001, state.duration), state.variant, state.ballHand);
+        const progress = Math.min(1, state.elapsed / Math.max(0.001, state.duration));
+        const sample = samplePetBallPlay(latest.current.reduced ? 1 : progress, state.variant, state.ballHand);
         state.ballSample = sample; ballPose(sample);
         if (state.hand !== sample.activeHand) chooseHand(state, sample.activeHand);
-        // 先更新小手姿态再测量实际掌心，三套路径只使用双手和地面，不经过嘴或喂食曲线。
+        // 先更新小手姿态再量掌心；五套玩法只在手部范围，结束后继续跟随同一只手。
         const hands = anchors(); const ball = sample.ball;
-        const floor = { x: hands[state.ballHand].x, y: 1 - radius.y };
-        setPosition(state, { x: hands.left.x * ball.left + hands.right.x * ball.right + floor.x * ball.floor + ball.orbitX * propSize / width,
-          y: hands.left.y * ball.left + hands.right.y * ball.right + floor.y * ball.floor - (ball.lift + ball.orbitY) * propSize / height });
+        const next = { x: hands.left.x * ball.left + hands.right.x * ball.right + ball.orbitX * propSize / width,
+          y: hands.left.y * ball.left + hands.right.y * ball.right - (ball.lift + ball.orbitY) * propSize / height };
+        const gather = latest.current.reduced ? 1 : Math.min(1, progress / 0.16); const blend = gather * gather * (3 - 2 * gather);
+        setPosition(state, { x: state.from.x + (next.x - state.from.x) * blend, y: state.from.y + (next.y - state.from.y) * blend });
         state.flight.spin = ball.spin;
-        setMotionPhase(state, sample.phase === 'gather' ? 'contact' : 'playing');
-        if (sample.released) throwBack(state);
+        setMotionPhase(state, progress >= 1 ? 'cradled' : sample.phase === 'gather' ? 'contact' : 'playing');
       } else if (state.stage === 'wake') {
         if (state.elapsed >= state.duration) { state.stage = null; setMotionPhase(state, 'ready'); }
       } else if (state.phase === 'flight' || state.phase === 'return') {

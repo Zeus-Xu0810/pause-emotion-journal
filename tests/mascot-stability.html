@@ -217,10 +217,31 @@
         await until(() => metrics.responses.find(sample => sample.at >= began && sample.response !== 'idle') ?? (response() !== 'idle' && reply() !== oldText ? snapshot() : null), '真实逗玩回应');
         await wait(CARE.cooldownMs + TEST.pollMs);
       }
-      await until(() => phase() === 'ready' && response() === 'idle' && prop() && !prop().disabled, '停止输入后收敛');
+      await until(() => phase() === 'cradled' && response() === 'idle' && prop() && !prop().disabled, '停止输入后在掌心收势');
       const count = metrics.responses.filter(sample => sample.response !== 'idle').length;
       await wait(TEST.quietMs);
       expect(metrics.responses.filter(sample => sample.response !== 'idle').length === count, '停止输入后仍自行重复触发回应'); stableRenderer();
+    }],
+    ['五套手上玩法完成后保留球，鼠标与触屏点按可继续', async () => {
+      await fresh('tease'); const texts = [];
+      for (let round = 0; round < 5; round += 1) {
+        await until(() => prop() && !prop().disabled, '球可点击');
+        const node = prop(); const oldText = reply(); const began = performance.now();
+        if (round % 2 === 0) click(node);
+        else {
+          const point = center(node); const id = ++pointerId;
+          node.dispatchEvent(new PointerEvent('pointerdown', { pointerId: id, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1, clientX: point.x, clientY: point.y, bubbles: true, cancelable: true }));
+          await wait(35);
+          node.dispatchEvent(new PointerEvent('pointerup', { pointerId: id, pointerType: 'touch', isPrimary: true, button: 0, buttons: 0, clientX: point.x + 2, clientY: point.y, bubbles: true, cancelable: true }));
+        }
+        await until(() => reply() !== oldText && response() !== 'idle', '点按触发下一套玩法'); texts.push(reply());
+        await until(() => phase() === 'cradled' && response() === 'idle', '球收在掌心');
+        expect(!metrics.phases.some(sample => sample.at >= began && sample.phase === 'return'), '团子自行抛走了球');
+        const kept = center(prop()); await wait(TEST.baselineMs); const after = center(prop());
+        expect(Math.hypot(after.x - kept.x, after.y - kept.y) < 10, '掌心等候状态仍在飘离');
+        expect(!prop().disabled, '掌心等候不能再次点击');
+      }
+      expect(new Set(texts).size === 5, '一轮五套回应发生重复'); stableRenderer();
     }],
     ['远处放球后观察5秒，身体不会持续缩远或漂离', async () => {
       await fresh('tease'); const node = prop(); const id = ++pointerId; const start = center(node);

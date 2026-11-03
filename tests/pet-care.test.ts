@@ -116,12 +116,13 @@ test('相同输入确定地产生相同回应，ID递增，强度/时长/三变�
   assert.deepEqual(first, second);
   assert.deepEqual(first.responses.map(response => response.id), actions.map((_, index) => index + 1));
   for (const response of first.responses) {
-    assert.ok(response.variant >= 0 && response.variant < SETTINGS.variantCount);
+    const count = ['play', 'excited', 'tired'].includes(response.kind) ? SETTINGS.ballVariantCount : SETTINGS.variantCount;
+    assert.ok(response.variant >= 0 && response.variant < count);
     assert.ok(response.intensity > 0 && response.intensity <= 1);
     assert.equal(response.durationMs, SETTINGS.responses[response.kind].durationMs);
   }
-  for (const content of Object.values(SETTINGS.responses)) {
-    assert.equal(new Set(content.texts).size, SETTINGS.variantCount);
+  for (const [kind, content] of Object.entries(SETTINGS.responses)) {
+    assert.equal(new Set(content.texts).size, ['play', 'excited', 'tired'].includes(kind) ? SETTINGS.ballVariantCount : SETTINGS.variantCount);
     assert.ok(content.texts.every(text => text.length > 0 && text.length < 30));
   }
 });
@@ -137,4 +138,12 @@ test('长序列始终有界，没有失败惩罚或无限累积的记忆数值',
     assert.ok(memory.streak >= 1 && memory.streak <= SETTINGS.maxStreak);
     assert.ok(next.response);
   }
+});
+
+/** 喂食和哄睡使用自己的序号，不能打断球的一轮五套玩法。 */
+test('玩球采用独立五套序列，穿插喂食安抚仍不相邻重复', () => {
+  const result = sequence(['catch', 'bite', 'soothe', 'catch', 'bite', 'catch', 'soothe', 'catch', 'bite', 'catch', 'catch']);
+  const balls = result.responses.filter(r => ['play', 'excited', 'tired'].includes(r.kind));
+  assert.deepEqual(balls.map(r => r.variant), [0, 1, 2, 3, 4, 0]);
+  assert.equal(result.memory.playSequence, 6);
 });

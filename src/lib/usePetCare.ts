@@ -7,7 +7,7 @@ import type { MascotGesture, MascotSceneController } from './mascot-interaction-
 
 /** 输入配置集中设置；飞行与真实嘴、双手接触统一由渲染场景判断。 */
 const INPUT = { keyboardHintMs: 4200, tapMaximumPx: 6, tapMaximumMs: 420, sampleWindowMs: 220 };
-export const PET_ACTIVITY_HINTS: Record<PetActivity, string> = { feed: '把点心抛过来，我来接', tease: '抛起小球，还能在空中抓住', sleep: '轻轻摇月亮，陪我打个盹' };
+export const PET_ACTIVITY_HINTS: Record<PetActivity, string> = { feed: '把点心抛过来，我来接', tease: '点点小球，看我换个玩法', sleep: '轻轻摇月亮，陪我打个盹' };
 interface PetCareOptions {
   scene: RefObject<MascotSceneController | null>;
   host: RefObject<HTMLDivElement | null>;
@@ -126,7 +126,7 @@ export function usePetCare(options: PetCareOptions) {
   function click(input: MouseEvent<HTMLButtonElement>) { if (input.detail === 0) send({ type: 'activate' }); }
   function keyDown(input: KeyboardEvent<HTMLButtonElement>) { if (input.key === 'Escape') { input.preventDefault(); cancel(); } if ((input.key === 'Enter' || input.key === ' ') && input.repeat) input.preventDefault(); }
   return { activity, response, phase, lastInput, sleeping: memory.current.sleeping, propRef, event, publishTargets, select, touch, reset,
-    // 返回球和自由飞行仍可再次抓取；只有接稳、咀嚼等实际占用道具的阶段锁定输入。
+    // 掌心等候、玩球中和自由飞行均可再次抓取；只有接稳、咀嚼等阶段锁定输入。
     busy: phase !== undefined ? ['contact', 'eating', 'responding'].includes(phase) : response !== null && !['drowsy', 'asleep'].includes(response.kind),
     handlers: { onPointerDown: pointerDown, onPointerMove: pointerMove, onPointerUp: pointerUp, onPointerCancel: cancel, onLostPointerCapture: () => { if (grip.current) cancel(); }, onClick: click, onKeyDown: keyDown },
   };

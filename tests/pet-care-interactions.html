@@ -330,8 +330,9 @@
           await fresh('tease'); let kind = await activate('click'); expect(kind === 'play', '第一次逗球不是普通玩耍');
           for (let index = 1; index < TEST.maximumPlayActivations && kind !== 'excited'; index += 1) kind = await activate('click');
           await expectResponse('excited');
-          const returning = await until(() => phaseEvidence.find(item => item.at >= lastActivationAt && item.phase === 'return') ?? (phase() === 'return' ? evidence() : null), '接住后扔回小球');
-          expect(returning.propDisabled === false, '扔回的小球被锁住，不能重抓');
+          await until(() => phase() === 'cradled', '完成后留在掌心');
+          expect(!prop().disabled, '掌心里的球被锁住，不能点击或重抓');
+          expect(!phaseEvidence.some(item => item.at >= lastActivationAt && item.phase === 'return'), '团子仍自动把球抛走');
           expect(phaseTrail.includes('flight') && phaseTrail.includes('contact'), '逗球没有经过真实飞行和接触');
         }],
         ['慢摇月亮后再Enter安抚至熟睡，可以明确叫醒', async () => {

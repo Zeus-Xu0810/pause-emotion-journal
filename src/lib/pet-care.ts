@@ -4,9 +4,9 @@ export type PetEventKind = 'bite' | 'catch' | 'soothe' | 'wake';
 export interface PetEvent { kind: PetEventKind; at: number }
 export type PetResponseKind = 'eat' | 'full' | 'play' | 'excited' | 'tired' | 'drowsy' | 'asleep' | 'wake';
 export interface PetResponse { id: number; kind: PetResponseKind; text: string; intensity: number; variant: number; durationMs: number }
-export interface PetMemory { satiety: number; excitement: number; calm: number; sleeping: boolean; lastAt: number; lastEventAt: number; lastKind: PetEventKind | null; sequence: number; streak: number }
+export interface PetMemory { satiety: number; excitement: number; calm: number; sleeping: boolean; lastAt: number; lastEventAt: number; lastKind: PetEventKind | null; sequence: number; playSequence: number; streak: number }
 export interface PetPoint { x: number; y: number }
-export type PetPropPhase = 'ready' | 'held' | 'flight' | 'contact' | 'playing' | 'eating' | 'return' | 'responding' | 'sleeping';
+export type PetPropPhase = 'ready' | 'held' | 'flight' | 'contact' | 'playing' | 'cradled' | 'eating' | 'return' | 'responding' | 'sleeping';
 export interface PetTargets { phase?: PetPropPhase; leftHand?: PetPoint; rightHand?: PetPoint; prop: { x: number; y: number; radius: number } | null; mouth: PetPoint; hand: PetPoint }
 /** 输入坐标来自整个舞台，x向右、y向下且范围[-1,1]。 */
 export interface PetInput { type: 'start' | 'move' | 'release' | 'activate' | 'cancel'; point?: PetPoint; velocity?: PetPoint }
@@ -34,17 +34,18 @@ export const PET_CARE_SETTINGS = {
   sleepExcitementMaximum: 0.65,
   wakeExcitement: 0.25,
   variantCount: 3,
+  ballVariantCount: 5,
   variantIntensityStep: 0.045,
   responses: {
     eat: { durationMs: 1600, intensity: 0.55, texts: ['啊呜，甜甜的', '再来一小口', '这一口慢慢嚼'] },
     full: { durationMs: 1900, intensity: 0.3, texts: ['肚子圆圆啦，留一点下次吃', '吃饱啦，陪我坐会儿', '这口先替我收好嘛'] },
-    play: { durationMs: 1500, intensity: 0.5, texts: ['看我转个小圈圈', '拍拍，小球弹回来啦', '左手右手，都接住啦'] },
-    excited: { durationMs: 1800, intensity: 0.75, texts: ['转起来啦，嘿', '咚，弹得好轻巧', '传给另一只小手'] },
-    tired: { durationMs: 2100, intensity: 0.35, texts: ['慢慢转一圈就好', '轻轻拍两下就歇会儿', '慢慢传，我接得住'] },
+    play: { durationMs: 1900, intensity: 0.5, texts: ['看我转个小圈圈', '掌心轻轻拍拍', '左手右手，都接住啦', '软软的球，捏一捏', '稳稳托住，不掉下来'] },
+    excited: { durationMs: 2200, intensity: 0.75, texts: ['转起来啦，嘿', '轻轻弹，接住啦', '传给另一只小手', '捏捏软球，嘿嘿', '小球在掌心摇摇'] },
+    tired: { durationMs: 2500, intensity: 0.35, texts: ['慢慢转一圈就好', '轻轻拍两下就歇会儿', '慢慢传，我接得住', '抱着软球歇一会儿', '慢慢摇，我托着呢'] },
     drowsy: { durationMs: 2100, intensity: 0.4, texts: ['嗯，轻轻摸就好', '眼皮有点沉啦', '再陪我安静一会儿'] },
     asleep: { durationMs: 4800, intensity: 0.25, texts: ['呼……睡一小会儿', '抱着软软的梦睡啦', '我先眯一下，就在这里'] },
     wake: { durationMs: 1800, intensity: 0.45, texts: ['嗯？我醒啦', '伸个懒腰，看到你啦', '醒来先靠你近一点'] },
-  } satisfies Record<PetResponseKind, { durationMs: number; intensity: number; texts: readonly [string, string, string] }>,
+  } satisfies Record<PetResponseKind, { durationMs: number; intensity: number; texts: readonly string[] }>,
 };
 
 const bounded = (value: number, maximum: number) => Math.min(maximum, Math.max(0, value));
@@ -53,7 +54,7 @@ const validTime = (at: number) => Number.isFinite(at) && at >= 0 && at <= Number
 /** 创建新的页面记忆；首个事件立即可用，非法起始时间回到安全的零点。 */
 export function createPetMemory(at: number): PetMemory {
   const start = validTime(at) ? at : 0;
-  return { satiety: 0, excitement: 0, calm: 0, sleeping: false, lastAt: start, lastEventAt: start - PET_CARE_SETTINGS.cooldownMs, lastKind: null, sequence: 0, streak: 0 };
+  return { satiety: 0, excitement: 0, calm: 0, sleeping: false, lastAt: start, lastEventAt: start - PET_CARE_SETTINGS.cooldownMs, lastKind: null, sequence: 0, playSequence: 0, streak: 0 };
 }
 
 /** 衰减按真实经过时间计算，与调用频率无关；不会修改调用方保留的上一份记忆。 */
@@ -67,11 +68,12 @@ function decayMemory(memory: PetMemory, at: number): PetMemory {
   };
 }
 
-/** 每次回应有稳定ID和三种轮换，不依赖随机数、网络、账号或持久存储。 */
+/** 回应保留稳定ID；玩球用独立五套序列，喂食/哄睡穿插不会造成相邻重播。 */
 function responseFor(memory: PetMemory, kind: PetResponseKind): PetResponse {
   const content = PET_CARE_SETTINGS.responses[kind];
   // 进食按尚记得的几口轮换，插入摸摸或逗玩也不会让前三口碰巧全用同一种回应。
-  const variant = kind === 'eat'
+  const isBall = kind === 'play' || kind === 'excited' || kind === 'tired';
+  const variant = isBall ? Math.max(0, memory.playSequence - 1) % PET_CARE_SETTINGS.ballVariantCount : kind === 'eat'
     ? Math.max(0, Math.round(memory.satiety / PET_CARE_SETTINGS.biteSatiety) - 1) % PET_CARE_SETTINGS.variantCount
     : (memory.sequence - 1) % PET_CARE_SETTINGS.variantCount;
   return { id: memory.sequence, kind, text: content.texts[variant], variant, durationMs: content.durationMs, intensity: bounded(content.intensity + variant * PET_CARE_SETTINGS.variantIntensityStep, 1) };
@@ -100,6 +102,7 @@ export function respondToPet(memory: PetMemory, event: PetEvent): { memory: PetM
     if (kind === 'eat') next.satiety = bounded(next.satiety + PET_CARE_SETTINGS.biteSatiety, PET_CARE_SETTINGS.maxSatiety);
     next.calm = 0;
   } else if (event.kind === 'catch') {
+    next.playSequence += 1;
     next.excitement = bounded(next.excitement + PET_CARE_SETTINGS.catchExcitement, PET_CARE_SETTINGS.maxExcitement);
     next.calm = 0;
     kind = next.streak >= PET_CARE_SETTINGS.tiredMinimumStreak && next.excitement >= PET_CARE_SETTINGS.tiredThreshold ? 'tired' : next.excitement >= PET_CARE_SETTINGS.excitedThreshold ? 'excited' : 'play';
