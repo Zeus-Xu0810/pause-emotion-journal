@@ -4,6 +4,9 @@
   --journal-paper-line: #e7e8dc;
   --journal-stamp-size: 70px;
   --journal-item-space: 28px;
+  --journal-empty-height: 350px;
+  --journal-empty-paper-height: 142px;
+  --journal-empty-gap: 22px;
 }
 
 /* 时间线是一叠轻薄纸页，只在左侧留下装订线，不添加多重卡片。 */
@@ -32,8 +35,8 @@
 .journal-shelf .entry-detail-actions button:last-child:hover { color: var(--danger); }
 
 /* 空状态是一只团子捧着小纸片；装饰不承担按钮或记录状态。 */
-.journal-shelf .journal-shelf-empty { min-height: 350px; padding-top: 27px; }
-.journal-shelf .journal-empty-paper { position: relative; width: 194px; height: 142px; margin: 0 0 22px; isolation: isolate; }
+.journal-shelf .journal-shelf-empty { min-height: var(--journal-empty-height); padding-top: 27px; }
+.journal-shelf .journal-empty-paper { position: relative; width: 194px; height: var(--journal-empty-paper-height); margin: 0 0 var(--journal-empty-gap); isolation: isolate; }
 .journal-shelf .journal-empty-paper::before { content: ''; position: absolute; z-index: -1; inset: 26px 24px 0; border: 1px solid var(--journal-paper-line); border-radius: 7px 7px 16px 7px; background: var(--journal-paper); box-shadow: 2px 5px 0 #e8ebe143; transform: rotate(-6deg); }
 .journal-shelf .journal-empty-stamp { display: block; width: 117px; height: 117px; margin: 0 auto; transform: rotate(5deg); }
 .journal-shelf .journal-paper-line { position: absolute; bottom: 23px; left: 51px; width: 68px; height: 1px; background: #dce3d7; box-shadow: 0 8px 0 #e5e8de; transform: rotate(-6deg); }
@@ -64,6 +67,11 @@
   .journal-shelf .entry-detail { margin-left: 0; }
   .journal-shelf .entry-chevron { flex-basis: 15px; margin-top: 8px; }
   .journal-shelf .journal-shelf-empty h2 { max-width: 285px; font-size: 23px; }
+}
+
+/* 短屏缩减空状态的装饰留白，让“记一笔”完整避开底部导航。 */
+@media (max-width: 640px) and (max-height: 740px) {
+  .journal-shelf { --journal-empty-height: 290px; --journal-empty-paper-height: 116px; --journal-empty-gap: 12px; }
 }
 
 /* 低动态模式保留邮票和内容，仅取消装饰性的悬停摆动。 */
