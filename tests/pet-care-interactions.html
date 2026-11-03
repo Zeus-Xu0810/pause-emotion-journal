@@ -44,6 +44,7 @@
       import { createRoot } from 'react-dom/client';
       import MoodSculpture from '../src/components/MoodSculpture.tsx';
       import { PET_CARE_SETTINGS as CARE } from '../src/lib/pet-care.ts';
+      import { PET_FLIGHT_SETTINGS as FLIGHT } from '../src/lib/pet-flight.ts';
       import '../src/styles.css';
 
       /** 夹具输入集中设置；回应等待根据真实disabled和产品时长配置，不缩短产品动画。 */
@@ -54,8 +55,10 @@
         timeoutMarginMs: 2400,
         layoutTimeoutMs: 4000,
         quietMs: CARE.cooldownMs + 150,
-        gentleHoldMs: 420,
+        gentleHalfMs: 450,
+        quickShakeHoldMs: 380,
         gentleOffsetPx: 40,
+        releaseRestMs: Math.max(100, FLIGHT.stationaryTailMs + 40),
         bodyGrip: { x: 0.5, y: 0.72 },
         bodyDragPx: 28,
         boundsTolerancePx: 2,
@@ -101,12 +104,14 @@
       let running = false;
       let observer = null;
       let responseTrail = [];
+      let phaseTrail = [];
       const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
       const frames = async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); };
       const expect = (condition, message) => { if (!condition) throw new Error(message); };
       const sculpture = () => mount.querySelector('.mood-sculpture');
       const activity = () => sculpture()?.dataset.petActivity;
       const response = () => sculpture()?.dataset.petResponse;
+      const phase = () => sculpture()?.dataset.petPhase ?? 'ready';
       const reply = () => mount.querySelector('.mascot-reply')?.textContent.trim() ?? '';
       const prop = () => mount.querySelector('.mascot-care-target');
       const stage = () => mount.querySelector('.mascot-visual-stage');
@@ -121,7 +126,7 @@
       async function until(predicate, label, timeoutMs = TEST.layoutTimeoutMs) {
         const began = performance.now();
         while (!predicate()) {
-          if (performance.now() - began > timeoutMs) throw new Error(label + '超时；activity=' + activity() + '，response=' + response());
+          if (performance.now() - began > timeoutMs) throw new Error(label + '超时；activity=' + activity() + '，response=' + response() + '，phase=' + phase());
           await wait(TEST.pollMs);
         }
         await frames();
@@ -148,7 +153,7 @@
         await until(() => activity() === kind && shown(prop()), '选择' + kind + '和可见道具');
       }
       async function fresh(kind) {
-        observer?.disconnect(); responseTrail = []; lastActivationAt = -Infinity;
+        observer?.disconnect(); responseTrail = []; phaseTrail = []; lastActivationAt = -Infinity;
         root.render(React.createElement(MoodSculpture, { key: ++instance, mood: null }));
         await frames(); await frames();
         mount.scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -157,8 +162,10 @@
         observer = new MutationObserver(() => {
           const kind = response();
           if (responseTrail.at(-1) !== kind) responseTrail.push(kind);
+          const nextPhase = phase();
+          if (phaseTrail.at(-1) !== nextPhase) phaseTrail.push(nextPhase);
         });
-        observer.observe(sculpture(), { attributes: true, attributeFilter: ['data-pet-response'] });
+        observer.observe(sculpture(), { attributes: true, attributeFilter: ['data-pet-response', 'data-pet-phase'] });
         if (kind) await select(kind);
       }
       async function unlocked() {
@@ -185,7 +192,7 @@
         } else expect(nativeClick(node), '激活时道具仍被禁用');
         lastActivationAt = performance.now();
         await until(() => response() !== 'idle' && (response() !== before.kind || reply() !== before.text), '新照顾回应');
-        log('activate', { via, activity: activity(), response: response(), text: reply() });
+        log('activate', { via, activity: activity(), response: response(), phase: phase(), text: reply() });
         return response();
       }
       async function expectResponse(kind) {
@@ -213,7 +220,17 @@
         log('drag', { start, end, cancel, activity: activity() });
         pointer(node, 'pointerdown', id, start); await frames();
         pointer(node, 'pointermove', id, end); await frames();
+        // 递食停在锚点后再放开；末端速度归零，不能把一次瞬移误测成高速甩球。
+        await wait(TEST.releaseRestMs);
         pointer(node, cancel ? 'pointercancel' : 'pointerup', id, end); lastActivationAt = performance.now(); await frames();
+      }
+      /** 用真实rAF分散采样，慢摇速度来自持续运动，不是先长按再瞬移伪造。 */
+      async function moveOver(node, id, start, end, durationMs) {
+        const began = performance.now(); let progress = 0;
+        while (progress < 1) {
+          await new Promise(requestAnimationFrame); progress = Math.min(1, (performance.now() - began) / durationMs);
+          pointer(node, 'pointermove', id, { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress });
+        }
       }
       async function fallAsleep() {
         await select('sleep');
@@ -246,15 +263,21 @@
           for (const kind of expected) {
             expect(await activate() === kind, '喂食阶段不符，应为' + kind);
             if (kind === 'eat') firstBites.push(reply());
-            expect(prop().disabled, '进食回应期间没有锁住道具');
-            const previous = reply(); expect(nativeClick(prop()) === false, '夹具不应激活disabled按钮');
-            await frames(); expect(reply() === previous, '禁用或重复键触发额外回应');
+            if (kind === 'eat') {
+              expect(prop().disabled, '进食回应期间没有锁住道具');
+              const previous = reply(); expect(nativeClick(prop()) === false, '夹具不应激活disabled按钮');
+              await frames(); expect(reply() === previous, '禁用时触发了额外回应');
+            } else {
+              expect(['return', 'flight', 'ready'].includes(phase()), '吃饱后没有自然扔回道具');
+              expect(!prop().disabled, '扔回的道具应允许重新抓住');
+            }
           }
           expect(new Set(firstBites).size === 3, '前三口没有不同短句');
         }],
         ['点心丢在空处不吃，真正拖到可见嘴边才吃', async () => {
-          await fresh('feed'); await dragTo(emptyPoint()); await wait(TEST.quietMs); await frames();
-          expect(response() === 'idle', '丢在空处也触发进食');
+          await fresh('feed'); await dragTo(emptyPoint());
+          await until(() => phase() === 'ready', '远处食物落地停止', responseTimeoutMs); await wait(TEST.quietMs); await frames();
+          expect(response() === 'idle' && !responseTrail.includes('eat'), '丢在远处也自动触发进食');
           await dragTo('.mascot-static-mouth'); await expectResponse('eat');
         }],
         ['逗球先普通接住，多次激活后自然兴奋', async () => {
@@ -265,9 +288,10 @@
         ['慢摇月亮后再Enter安抚至熟睡，可以明确叫醒', async () => {
           await fresh('sleep'); await unlocked();
           const node = prop(); const id = ++pointerSequence; const start = center(node);
-          pointer(node, 'pointerdown', id, start); await wait(TEST.gentleHoldMs);
-          pointer(node, 'pointermove', id, { x: start.x - TEST.gentleOffsetPx, y: start.y }); await frames();
-          pointer(node, 'pointermove', id, start); pointer(node, 'pointerup', id, start); lastActivationAt = performance.now();
+          const turn = { x: start.x - TEST.gentleOffsetPx, y: start.y };
+          pointer(node, 'pointerdown', id, start);
+          await moveOver(node, id, start, turn, TEST.gentleHalfMs); await moveOver(node, id, turn, start, TEST.gentleHalfMs);
+          pointer(node, 'pointerup', id, start); lastActivationAt = performance.now();
           await expectResponse('drowsy'); await fallAsleep();
           expect(nativeClick(tool('叫醒它')), '叫醒按钮被禁用'); await expectResponse('wake');
           expect(Boolean(tool('哄睡')), '醒来后按钮未恢复哄睡');
@@ -320,6 +344,15 @@
           expect(!responseTrail.includes('idle'), '唤醒到松手之间出现瞬间清空');
           await unlocked(); expect(response() === 'idle', 'wake结束后回应未归位');
         }],
+        ['长按之后快速甩动月亮也不能冒充温柔安抚', async () => {
+          await fresh('sleep'); await unlocked();
+          const node = prop(); const id = ++pointerSequence; const start = center(node);
+          pointer(node, 'pointerdown', id, start); await wait(TEST.quickShakeHoldMs);
+          pointer(node, 'pointermove', id, { x: start.x - TEST.gentleOffsetPx, y: start.y }); await frames();
+          pointer(node, 'pointermove', id, start); pointer(node, 'pointerup', id, start);
+          await wait(TEST.quietMs); await frames();
+          expect(response() === 'idle' && !responseTrail.includes('drowsy'), '快速摇动被计作安抚');
+        }],
       ];
 
       /** 原生click立即返回；异步测试自行逐项推进，结果行在舞台之后，不移动采样原点。 */
@@ -337,7 +370,7 @@
             passed += 1; row.dataset.result = 'pass'; row.textContent = 'PASS · ' + label;
           } catch (error) {
             row.dataset.result = 'fail'; row.textContent = 'FAIL · ' + label + '：' + (error instanceof Error ? error.message : String(error));
-            log('FAIL', { message: row.textContent, activity: activity(), response: response(), trail: responseTrail });
+            log('FAIL', { message: row.textContent, activity: activity(), response: response(), phase: phase(), trail: responseTrail, phases: phaseTrail });
           }
         }
         status.dataset.status = passed === cases.length ? 'passed' : 'failed'; status.textContent = (passed === cases.length ? 'PASS' : 'FAIL') + ' · ' + passed + '/' + cases.length + ' 项通过';
