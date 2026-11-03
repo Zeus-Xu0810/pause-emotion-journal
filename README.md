@@ -79,3 +79,12 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 - 低动态仍可直接抓取、捏脸并自动调整取景，停用自主动作与余振；WebGL失败则使用可玩的CSS后备，默认不发声音。
 - 本次检查覆盖64项单元测试、6项无WebGL浏览器回归、真实3D指针抓取/捏脸及不同屏幕下的保存位置。物理测试另核对30/60/120帧回弹差异与极值曲面朝向，实体手机多指体验尚未实机测试。
 - 动画设计参考：[Pixar挤压与拉伸](https://www.khanacademy.org/computing/pixar/animate/ball/v/animate-4)、[Animation Mentor跟随与重叠](https://www.animationmentor.com/blog/follow-through-and-overlapping-action-the-12-basic-principles-of-animation/)、[Three.js缓动接口](https://threejs.org/docs/pages/MathUtils.html#damp)。
+
+
+## 喂食、逗玩与哄睡（2026-11-03）
+
+- 三种道具支持轻触、真实拖动与Enter/Space等价操作；点心须落到嘴边、小球须交到手边，拖空不会假装完成。熟睡时可明确叫醒，也能用身体互动唤醒，摸头和轻摇月亮可继续安抚。
+- 页面内的饱腹、兴奋和安静自然衰减；连续进食、接球和安抚有不同的短句、强度和姿态。睡着后第一次食物或玩具只唤醒，不会边睡边吃。没有惩罚、每日任务、账号上传或持久养成数据。
+- 真实三维嘴部、手部和道具通过当前曲面/世界坐标统一投影；触控框与可见道具中心一致。点心托盘和静止小球位于脚边，送食及递球沿弧线靠近表面前方；小手、眼皮和身体有不同衔接节奏。
+- 低动态以静态姿态及可见计时保留玩法，WebGL失败使用单份SVG/CSS道具，隐藏或离屏暂停回应。饱腹/熟睡等记忆只随下一次操作按时间衰减，不后台循环。
+- 本批80项单元测试、9项无WebGL浏览器交互回归通过；另在真实WebGL检查喂食、逗球、哄睡/唤醒、拖动命中和不同屏幕边界。实体手机多指仍需设备实测。
