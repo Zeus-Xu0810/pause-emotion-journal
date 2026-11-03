@@ -28,12 +28,12 @@ test('短按的时间和位移上界可接受，超时区间不误判成长按�
 test('头部短按为pat，左右手短按为wave，脸和身体短按保持poke', () => {
   for (const [region, expected] of [['head', 'pat'], ['hand-left', 'wave'], ['hand-right', 'wave'], ['cheek-left', 'poke'], ['body', 'poke']] as const) assert.equal(finishGesture(begin(region), { x: 100, y: 100 }, 80).kind, expected);
 });
-test('长按阈值精确区分：脸捏、身体抓取，手和肚皮不会凭空触发', () => {
+test('长按阈值精确区分：脸捏、身体和肚皮抓取，手不会凭空触发', () => {
   assert.equal(tickGesture(begin('cheek-left'), SETTINGS.longPressMs - 1).kind, null);
   assert.equal(tickGesture(begin('cheek-left'), SETTINGS.longPressMs).kind, 'pinch');
   assert.equal(tickGesture(begin('body'), SETTINGS.longPressMs).kind, 'drag');
   assert.equal(tickGesture(begin('hand-left'), SETTINGS.longPressMs).kind, null);
-  assert.equal(tickGesture(begin('belly'), SETTINGS.longPressMs).kind, null);
+  assert.equal(tickGesture(begin('belly'), SETTINGS.longPressMs).kind, 'drag');
   assert.equal(tickGesture(begin('cheek-left', 'poke'), SETTINGS.longPressMs).kind, null);
   const delayedTimer = finishGesture(begin('cheek-right'), { x: 100, y: 100 }, SETTINGS.longPressMs + 20);
   assert.equal(delayedTimer.kind, 'pinch'); assert.equal(delayedTimer.tapPending, false);
@@ -44,9 +44,11 @@ test('曾走出短按范围再回原位，不会退化为轻触', () => {
   assert.equal(released.tapPending, false);
   assert.equal(released.maxTravel, 20);
 });
-test('拉脸只pinch，头和手不会误拖整体；显式drag也不会拉走脸', () => {
+test('拉脸直接pinch，头顶横摸纵拖，手不会误拖整体；显式drag也不会拉走脸', () => {
   assert.equal(moveGesture(begin('cheek-right'), { x: 130, y: 100 }, 80).kind, 'pinch');
-  assert.equal(moveGesture(begin('head'), { x: 130, y: 100 }, 80).kind, null);
+  assert.equal(moveGesture(begin('head'), { x: 130, y: 100 }, 80).kind, 'pat');
+  assert.equal(moveGesture(begin('head'), { x: 100, y: 130 }, 80).kind, 'drag');
+  assert.equal(moveGesture(begin('head', 'drag'), { x: 130, y: 100 }, 80).kind, 'drag');
   assert.equal(moveGesture(begin('hand-left'), { x: 130, y: 100 }, 80).kind, null);
   assert.equal(moveGesture(begin('cheek-left', 'drag'), { x: 130, y: 100 }, 80).kind, null);
 });
@@ -65,19 +67,49 @@ test('auto纵向滚动能取消长按；显式drag在目标内可以纵向移动
   const explicit = moveGesture(begin('body', 'drag', 'touch'), { x: 100, y: 145 }, 80);
   assert.equal(explicit.kind, 'drag'); assert.equal(explicit.dy, 45); assert.equal(explicit.cancelled, false);
 });
-test('摸头和挠肚需要完整往返，抖动与单程滑动不算', () => {
-  for (const [region, expected] of [['head', 'pat'], ['belly', 'tickle']] as const) {
-    let state = begin(region);
-    state = moveGesture(state, { x: 130, y: 100 }, 100);
-    assert.equal(state.kind, null);
-    state = moveGesture(state, { x: 100, y: 100 }, 200);
-    assert.equal(state.kind, null);
-    state = moveGesture(state, { x: 130, y: 100 }, 300);
-    assert.equal(state.kind, expected);
-  }
+test('摸头一笔即可，肚皮先拖动后挠痒，微颤不会冒充抚摸', () => {
+  assert.equal(moveGesture(begin('head'), { x: 130, y: 100 }, 100).kind, 'pat');
+  let belly = moveGesture(begin('belly'), { x: 130, y: 100 }, 100);
+  assert.equal(belly.kind, 'drag');
+  belly = moveGesture(belly, { x: 100, y: 100 }, 200);
+  assert.equal(belly.kind, 'drag');
+  belly = moveGesture(belly, { x: 130, y: 100 }, 300);
+  assert.equal(belly.kind, 'tickle');
+  assert.equal(moveGesture(belly, { x: 135, y: 100 }, SETTINGS.scrubMaximumMs + 1000).kind, 'tickle');
   let jitter = begin('head');
   [108, 101, 109, 100, 108].forEach((x, index) => { jitter = moveGesture(jitter, { x, y: 100 }, 40 + index * 35); });
   assert.equal(jitter.kind, null);
+});
+
+test('直接拖动保留独立门槛，身体肚皮不等长按，脸颊只拉脸', () => {
+  for (const region of ['body', 'belly'] as const) {
+    const pending = moveGesture(begin(region), { x: 100 + SETTINGS.dragStartDistance - 1, y: 100 }, 40);
+    assert.equal(pending.hasInteraction, false);
+    const drag = moveGesture(pending, { x: 100 + SETTINGS.dragStartDistance, y: 100 }, 60);
+    assert.equal(drag.kind, 'drag'); assert.equal(drag.dx, SETTINGS.dragStartDistance);
+    assert.ok(drag.strength >= SETTINGS.dragMinimumStrength);
+  }
+  assert.equal(moveGesture(begin('cheek-left'), { x: 100 + SETTINGS.faceDragStartDistance - 1, y: 100 }, 40).hasInteraction, false);
+  assert.equal(moveGesture(begin('cheek-left'), { x: 100 + SETTINGS.faceDragStartDistance, y: 100 }, 60).kind, 'pinch');
+});
+
+test('头顶抚摸的微移边界与方向选择明确，确认后不在抚摸和拖动间来回闪烁', () => {
+  assert.equal(moveGesture(begin('head'), { x: 100 + SETTINGS.headStrokeStartDistance - 1, y: 100 }, 50).hasInteraction, false);
+  const pat = moveGesture(begin('head'), { x: 100 + SETTINGS.headStrokeStartDistance, y: 100 }, 70);
+  assert.equal(pat.kind, 'pat');
+  assert.equal(moveGesture(pat, { x: 100, y: 140 }, 100).kind, 'pat');
+  const drag = moveGesture(begin('head'), { x: 101, y: 100 + SETTINGS.dragStartDistance }, 50);
+  assert.equal(drag.kind, 'drag');
+  assert.equal(moveGesture(drag, { x: 130, y: 105 }, 100).kind, 'pat');
+});
+
+test('auto肚皮和头顶触屏纵向始终让行，横向可以直接拖动或抚摸', () => {
+  for (const region of ['head', 'belly'] as const) {
+    const scroll = moveGesture(begin(region, 'auto', 'touch'), { x: 101, y: 125 }, 80);
+    assert.equal(scroll.cancelled, true); assert.equal(finishGesture(scroll, { x: 130, y: 125 }, 120).hasInteraction, false);
+  }
+  assert.equal(moveGesture(begin('belly', 'auto', 'touch'), { x: 120, y: 101 }, 60).kind, 'drag');
+  assert.equal(moveGesture(begin('head', 'auto', 'touch'), { x: 120, y: 101 }, 60).kind, 'pat');
 });
 test('快左右往返身体才shake，慢拖仍为drag，显式模式不意外升级', () => {
   let fast = begin();

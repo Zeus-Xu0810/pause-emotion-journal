@@ -35,7 +35,7 @@ function recognized(state: GestureState, kind: MascotGesture, minimumStrength = 
 function permittedKind(mode: MascotMode, region: MascotRegion): MascotGesture | null {
   if (mode === 'auto' || mode === 'poke') return defaultTap(region);
   if (mode === 'pinch') return isCheek(region) ? 'pinch' : null;
-  if (mode === 'drag') return region === 'body' || region === 'belly' ? 'drag' : null;
+  if (mode === 'drag') return region === 'body' || region === 'belly' || region === 'head' ? 'drag' : null;
   if (mode === 'pat') return region === 'head' ? 'pat' : null;
   return region === 'belly' ? 'tickle' : null;
 }
@@ -64,19 +64,29 @@ export function moveGesture(state: GestureState, point: MascotPoint, at: number)
   if (state.pointerType === 'touch' && state.mode === 'auto' && Math.abs(dy) >= SETTINGS.touchScrollDistance && Math.abs(dy) >= Math.abs(dx) * SETTINGS.touchScrollAxisRatio) return cancelGesture(next);
   if (!next.region || next.mode === 'poke') return next;
   if (state.pointerType === 'touch' && state.mode === 'auto' && Math.abs(dx) < Math.abs(dy) * SETTINGS.touchScrollAxisRatio) return next;
-  if (isCheek(next.region) && (next.mode === 'auto' || next.mode === 'pinch') && next.maxTravel >= SETTINGS.faceDragStartDistance) return recognized(next, 'pinch', 0.2);
+  if (isCheek(next.region) && (next.mode === 'auto' || next.mode === 'pinch') && next.maxTravel >= SETTINGS.faceDragStartDistance) return recognized(next, 'pinch', SETTINGS.dragMinimumStrength);
   if (next.mode !== 'auto') {
     const kind = permittedKind(next.mode, next.region);
-    if (kind && next.maxTravel >= SETTINGS.dragStartDistance) return recognized(next, kind, 0.2);
+    if (kind && next.maxTravel >= SETTINGS.dragStartDistance) return recognized(next, kind, SETTINGS.dragMinimumStrength);
     return next;
   }
   const scrub = horizontalMotion(next.samples);
-  if (next.region === 'head' && scrub.reversals >= SETTINGS.scrubMinimumReversals) return recognized(next, 'pat', 0.3);
-  if (next.region === 'belly' && scrub.reversals >= SETTINGS.scrubMinimumReversals) return recognized(next, 'tickle', 0.3);
+  // 摸头不必先左右摇满两轮；横向一笔就是抚摸，纵向鼠标拖动可带走整个团子。
+  if (next.region === 'head') {
+    if (next.kind === 'pat' || (Math.abs(dx) >= SETTINGS.headStrokeStartDistance && Math.abs(dx) >= Math.abs(dy))) return recognized(next, 'pat', SETTINGS.scrubMinimumStrength);
+    if (next.maxTravel >= SETTINGS.dragStartDistance && Math.abs(dy) > Math.abs(dx)) return recognized(next, 'drag', SETTINGS.dragMinimumStrength);
+    return next;
+  }
+  // 肚皮先跟手整体移动，确认往返才笑；确认后保持到松手，不因采样窗口移动反复跳回拖动。
+  if (next.region === 'belly') {
+    if (next.kind === 'tickle' || scrub.reversals >= SETTINGS.scrubMinimumReversals) return recognized(next, 'tickle', SETTINGS.scrubMinimumStrength);
+    if (next.maxTravel >= SETTINGS.dragStartDistance) return recognized(next, 'drag', SETTINGS.dragMinimumStrength);
+    return next;
+  }
   if (next.region === 'body') {
     const shake = horizontalMotion(next.samples.filter(sample => at - sample.at <= SETTINGS.shakeMaximumMs));
-    if (shake.reversals >= SETTINGS.shakeMinimumReversals && shake.travel >= SETTINGS.shakeMinimumTravel) return recognized(next, 'shake', 0.3);
-    if (next.maxTravel >= SETTINGS.dragStartDistance) next = recognized(next, next.kind === 'shake' ? 'shake' : 'drag', 0.2);
+    if (shake.reversals >= SETTINGS.shakeMinimumReversals && shake.travel >= SETTINGS.shakeMinimumTravel) return recognized(next, 'shake', SETTINGS.scrubMinimumStrength);
+    if (next.maxTravel >= SETTINGS.dragStartDistance) next = recognized(next, next.kind === 'shake' ? 'shake' : 'drag', SETTINGS.dragMinimumStrength);
   }
   return next;
 }
@@ -86,8 +96,8 @@ export function tickGesture(state: GestureState, at: number): GestureState {
   if (state.cancelled || state.finished || at < state.lastAt || !Number.isFinite(at)) return state;
   const next = { ...state, lastAt: at };
   if (state.kind || state.maxTravel > SETTINGS.tapMaximumTravel || at - state.at < SETTINGS.longPressMs || !state.region || state.mode === 'poke') return next;
-  const kind = state.mode === 'auto' ? isCheek(state.region) ? 'pinch' : state.region === 'body' ? 'drag' : state.region === 'head' ? 'pat' : null : permittedKind(state.mode, state.region);
-  return kind ? recognized(next, kind, 0.25) : next;
+  const kind = state.mode === 'auto' ? isCheek(state.region) ? 'pinch' : state.region === 'body' || state.region === 'belly' ? 'drag' : state.region === 'head' ? 'pat' : null : permittedKind(state.mode, state.region);
+  return kind ? recognized(next, kind, SETTINGS.holdMinimumStrength) : next;
 }
 
 /** 短按只进入连击等待区；已移动、长按或取消的指针绝不会退化为轻触。 */

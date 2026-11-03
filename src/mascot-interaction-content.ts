@@ -13,6 +13,13 @@ export const MASCOT_INTERACTION_SETTINGS = {
   touchScrollAxisRatio: 1.2,
   dragStartDistance: 9,
   faceDragStartDistance: 8,
+  // 鼠标轻压立刻可见，但正式拖拽仍越过独立门槛；触屏预览更轻，不抢滚动。
+  mousePressStrength: 0.55,
+  touchPressStrength: 0.2,
+  headStrokeStartDistance: 10,
+  dragMinimumStrength: 0.28,
+  scrubMinimumStrength: 0.36,
+  holdMinimumStrength: 0.3,
   // 换向只有在走过足够距离后才计数，忽略手指微颤和像素噪声。
   reversalMinimumDistance: 14,
   scrubMinimumReversals: 2,
@@ -29,6 +36,9 @@ export const MASCOT_INTERACTION_SETTINGS = {
   maximumMotionSamples: 96,
   // 供DOM接入层共用的舞台坐标与反馈时长设置。
   keyboardStep: 0.04,
+  keyboardStrength: 0.35,
+  gazeLimit: 1.4,
+  tapFlushPaddingMs: 5,
   maxPointerDelta: 0.65,
   reactionResetMs: 1200,
   gestureCooldownMs: 180,
@@ -37,20 +47,20 @@ export const MASCOT_INTERACTION_SETTINGS = {
 
 /** 模式提示只描述当前可做的动作，保留自动模式的页面纵向滚动。 */
 export const MASCOT_MODE_HINTS: Record<MascotMode, string> = {
-  auto: '点点、摸摸，看看回应', poke: '轻轻点一下', pinch: '拉拉脸颊，或用双指捏合',
-  drag: '按住身体，挪一小步', pat: '在头顶左右摸摸', tickle: '在肚皮左右挠挠',
+  auto: '过来，陪我玩会儿', poke: '轻轻戳一下', pinch: '脸脸软软的',
+  drag: '带我挪一小步', pat: '摸摸我的头', tickle: '肚皮有点痒',
 };
 
 /** 情境短句独立于原有一百条回复，不给用户的情绪贴标签。 */
 export const MASCOT_GESTURE_REPLIES: Record<MascotGesture, readonly string[]> = {
-  poke: ['嘿，碰到你啦', '软软的一小下', '我在这里呀'],
-  pinch: ['脸颊借你捏一下', '慢慢捏，软乎乎', '圆圆的脸也会伸懒腰'],
-  drag: ['跟着你挪一小步', '到这里也挺舒服', '一起换个小位置'],
-  pat: ['摸摸头，收到啦', '头顶暖暖的', '再靠近一点点'],
-  tickle: ['痒痒，嘿嘿', '肚皮收到轻轻的问候', '笑得更圆了一点'],
-  wave: ['你好呀，挥挥手', '今天也碰个面', '手手和你打招呼'],
-  bounce: ['弹一下，轻轻落地', '带着笑意蹦一小下', '一颗软软的小弹跳'],
-  shake: ['左右晃晃也很自在', '跟着你轻轻摇', '软软地晃一小会儿'],
+  poke: ['嗯？是你呀', '嘿，碰到我啦', '我在呢'],
+  pinch: ['唔，脸脸软吧', '轻点捏嘛', '再捏就变扁啦'],
+  drag: ['带我去哪儿呀', '我跟着你', '挪一小步，嘿'],
+  pat: ['嗯，好舒服', '还想被摸摸', '再摸一下嘛'],
+  tickle: ['嘿嘿，好痒', '肚皮要躲起来啦', '哈哈，轻一点嘛'],
+  wave: ['嗨，手给你', '碰个掌吧', '今天也见到你啦'],
+  bounce: ['啵，弹回来啦', '嘿，再弹一下', '软软落地'],
+  shake: ['晃呀晃', '跟你摇一摇', '像坐小摇椅'],
 };
 export const MASCOT_GESTURE_EXPRESSIONS: Record<MascotGesture, MascotExpression> = {
   poke: 'curious', pinch: 'shy', drag: 'curious', pat: 'soft', tickle: 'happy', wave: 'wink', bounce: 'happy', shake: 'happy',
