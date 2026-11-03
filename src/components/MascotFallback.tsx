@@ -4,6 +4,7 @@ import type { MoodScore } from '../types';
 import type { MascotBounds, MascotGesture, MascotHit, MascotManipulation, MascotPoint } from '../lib/mascot-interaction-types';
 import type { PetActivity, PetEvent, PetEventKind, PetInput, PetPoint, PetPropPhase, PetResponse, PetTargets } from '../lib/pet-care';
 import { advancePetFlight, createPetFlight, isPetFlightResting, PET_FLIGHT_SETTINGS, sweptPetCatch, type PetFlight } from '../lib/pet-flight';
+import { samplePetMeal } from '../lib/pet-performance';
 
 /** 后备团子的形状、命中区域和动作范围集中设置，绘制与命中共用同一份几何。 */
 const FALLBACK = {
@@ -40,6 +41,8 @@ const FALLBACK = {
     sleepMinimumMs: 320,
     sleepTravel: 0.16,
     sleepMaximumSpeed: 1.25,
+    moonAlertSeconds: 0.9,
+    mealRegrowStart: 0.93,
     moonTravel: 0.27,
     maxFrameSeconds: 0.035,
     feed: { x: 1.06, y: 0.77 },
@@ -141,7 +144,7 @@ type CareHand = 'left' | 'right';
 interface CareMotion {
   activity: PetActivity; phase: PetPropPhase; flight: PetFlight; scale: number; eligible: boolean;
   stage: 'hand' | 'mouth' | 'eat' | 'ball' | 'wake' | null;
-  elapsed: number; duration: number; clock: number; ignoreUntil: number; responseId: number | null;
+  elapsed: number; duration: number; clock: number; ignoreUntil: number; responseId: number | null; variant: number; alertUntil: number;
   hand: CareHand; from: PetPoint; grip: { at: number; point: PetPoint; travel: number } | null;
 }
 interface FallbackCareOptions {
@@ -170,7 +173,7 @@ function useFallbackCare(options: FallbackCareOptions) {
     const previous = motion.current;
     const changedActivity = previous?.activity !== activity;
     if (!activity) motion.current = null;
-    else if (changedActivity) motion.current = { activity, phase: 'ready', flight: createPetFlight(home, { x: 0, y: 0 }), scale: 1, eligible: false, stage: null, elapsed: 0, duration: 0, clock: 0, ignoreUntil: 0, responseId: null, hand: 'right', from: home, grip: null };
+    else if (changedActivity) motion.current = { activity, phase: 'ready', flight: createPetFlight(home, { x: 0, y: 0 }), scale: 1, eligible: false, stage: null, elapsed: 0, duration: 0, clock: 0, ignoreUntil: 0, responseId: null, variant: 0, alertUntil: 0, hand: 'right', from: home, grip: null };
     if (changedActivity) { seenInput.current = options.input; setPhase('ready'); setHand('right'); }
     let frameId = 0; let lastAt: number | null = null; let visible = true; let lastTargets: PetTargets | null = null;
 
@@ -197,7 +200,7 @@ function useFallbackCare(options: FallbackCareOptions) {
     };
     const respond = (response: PetResponse) => {
       const state = motion.current; if (!state || response.id === state.responseId) return;
-      state.responseId = response.id; state.elapsed = 0; state.duration = response.durationMs / 1000; state.grip = null;
+      state.responseId = response.id; state.variant = response.variant; state.alertUntil = 0; state.elapsed = 0; state.duration = response.durationMs / 1000; state.grip = null;
       if (response.kind === 'eat') { state.stage = 'eat'; state.eligible = false; setMotionPhase(state, 'eating'); }
       else if (response.kind === 'play' || response.kind === 'excited' || response.kind === 'tired') { state.stage = 'ball'; state.eligible = false; setMotionPhase(state, 'contact'); }
       else if (response.kind === 'full') throwBack(state);
@@ -269,7 +272,8 @@ function useFallbackCare(options: FallbackCareOptions) {
           const tailSpeed = Math.hypot(next.velocity?.x ?? 0, next.velocity?.y ?? 0);
           const gentle = state.grip && durationMs >= FALLBACK.care.sleepMinimumMs && state.grip.travel >= FALLBACK.care.sleepTravel && state.grip.travel / Math.max(0.001, durationMs / 1000) <= FALLBACK.care.sleepMaximumSpeed && tailSpeed <= FALLBACK.care.sleepMaximumSpeed;
           state.grip = null; setPosition(state, home);
-          if (gentle) emit(state, 'soothe'); else setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready');
+          if (gentle) emit(state, 'soothe');
+          else { state.alertUntil = state.clock + FALLBACK.care.moonAlertSeconds; setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready'); }
         } else {
           state.grip = null; state.ignoreUntil = state.clock; state.flight = createPetFlight(state.flight, next.velocity ?? { x: 0, y: 0 }); setMotionPhase(state, 'flight');
           catchAlong(state, previousPoint, state.flight);
@@ -290,8 +294,10 @@ function useFallbackCare(options: FallbackCareOptions) {
         if (amount === 1) emit(state, 'bite');
       } else if (state.stage === 'eat') {
         const amount = state.elapsed / Math.max(0.001, state.duration);
-        if (amount < 0.65) { setPosition(state, target.mouth); state.scale = Math.max(0, 1 - amount / 0.3); }
-        else { setPosition(state, home); state.scale = clamp((amount - 0.7) / 0.22, 0, 1); }
+        // 与Three共用三口拍点，咬完最后一口才在原处补充下一份食物。
+        const meal = samplePetMeal(amount, state.variant);
+        if (amount < FALLBACK.care.mealRegrowStart) { setPosition(state, target.mouth); state.scale = meal.size; }
+        else { setPosition(state, home); state.scale = clamp((amount - FALLBACK.care.mealRegrowStart) / (1 - FALLBACK.care.mealRegrowStart), 0, 1); }
         if (amount >= 1) { state.stage = null; state.scale = 1; setPosition(state, home); setMotionPhase(state, 'ready'); }
       } else if (state.stage === 'ball') {
         setPosition(state, target[state.hand]);
@@ -308,6 +314,7 @@ function useFallbackCare(options: FallbackCareOptions) {
       const state = motion.current; if (!state) return;
       const point = pixels(state.flight);
       root.dataset.petDelivery = state.stage ?? 'none';
+      root.dataset.petAlert = state.clock < state.alertUntil ? 'true' : 'false';
       if (state.phase === 'flight' || state.phase === 'return' || state.phase === 'held') {
         const target = anchors();
         const side = Math.hypot((target.left.x - state.flight.x) * width, (target.left.y - state.flight.y) * height) < Math.hypot((target.right.x - state.flight.x) * width, (target.right.y - state.flight.y) * height) ? 'left' : 'right';

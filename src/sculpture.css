@@ -211,6 +211,12 @@
 .mascot-fallback[data-pet-response='wake'] .mascot-fallback-suspension { animation: mascot-pet-wake var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { animation: mascot-pet-stretch-left var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { animation: mascot-pet-stretch-right var(--pet-response-time) ease-in-out both; }
+/* 月亮摇得太快时短暂抬脸好奇，不增加安抚次数；减少动态时也保留同一静态表情。 */
+.mascot-fallback[data-pet-alert='true'] .mascot-static-face { animation: none; transform: translateY(-1%) rotate(5deg); }
+.mascot-fallback[data-pet-alert='true'] .mascot-static-eye { --fb-eye-open: 1; }
+.mascot-fallback[data-pet-alert='true'] .mascot-static-lid { top: 0; height: 100%; border: 0; animation: none; }
+.mascot-fallback[data-pet-alert='true'] .mascot-static-pupil { opacity: 1; }
+.mascot-fallback[data-pet-alert='true'] .mascot-static-mouth { left: 46.5%; top: 54%; width: 7%; height: 8%; border: 1.5px solid var(--mascot-face-ink); border-radius: 50%; background: transparent; animation: none; }
 .mascot-sleep-mark { position: absolute; left: calc(var(--fb-left) + var(--fb-width) * .83); top: calc(var(--fb-top) + var(--fb-height) * .04); color: #a8ab8d; font-size: 18px; line-height: 1; transform: rotate(8deg); animation: mascot-pet-sleep-mark 2600ms ease-in-out infinite; }
 .mascot-sleep-mark span { display: inline-block; margin-left: 4px; font-size: 12px; transform: translateY(-8px); }
 .mascot-fallback[data-pet-paused='true'] *, .mascot-fallback[data-pet-paused='true'] *::after { animation-play-state: paused !important; }
