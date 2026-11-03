@@ -167,8 +167,9 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const faceCenter = faceProjection.set(0, SETTINGS.face.eyeY, SETTINGS.body.depth).applyMatrix4(rig.matrixWorld).project(camera);
       const distance = Math.hypot(pointerX - faceCenter.x, pointerY + faceCenter.y);
       const proximity = hasLook ? 1 - THREE.MathUtils.clamp(distance / 0.62, 0, 1) : 0;
-      const targetX = hasLook ? THREE.MathUtils.clamp((pointerX - faceCenter.x) * 1.8, -1, 1) : idle ? idleLookX : 0;
-      const targetY = hasLook ? THREE.MathUtils.clamp((pointerY + faceCenter.y) * 1.8, -1, 1) : idle ? idleLookY : 0;
+      const attentive = hasLook && time - lastContact < 4;
+      const targetX = attentive ? THREE.MathUtils.clamp((pointerX - faceCenter.x) * 1.8, -1, 1) : idle ? idleLookX : 0;
+      const targetY = attentive ? THREE.MathUtils.clamp((pointerY + faceCenter.y) * 1.8, -1, 1) : idle ? idleLookY : 0;
       eyeLookX += (targetX - eyeLookX) * settle; eyeLookY += (targetY - eyeLookY) * settle;
       eyeProximity += (proximity - eyeProximity) * settle;
       const gesture = held?.kind ?? reaction?.kind;
@@ -347,9 +348,17 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       scene.updateMatrixWorld(true);
     }
 
+    /** 同一取景逻辑用于动画、低动态直接操纵与尺寸变化，最大抓取仍完整留在舞台内。 */
+    function fitCamera(delta = 0) {
+      const verticalSpace = camera.top / (1.15 + Math.abs(rig.position.y) + Math.abs(grab.y) * 0.15);
+      const horizontalSpace = camera.right / (1.25 + Math.abs(rig.position.x) + (fieldKind === 'pinch' ? Math.abs(pull.x) : 0));
+      const targetZoom = Math.min(1, verticalSpace, horizontalSpace);
+      const zoom = reduced || delta === 0 ? targetZoom : camera.zoom + (targetZoom - camera.zoom) * (1 - Math.exp(-12 * delta));
+      if (Math.abs(camera.zoom - zoom) > 0.0001) { camera.zoom = zoom; camera.updateProjectionMatrix(); }
+    }
     function renderDirect() {
       if (disposed || !bodyGeometry) return;
-      pose(0, null); applyPhysicalPose(); updateEyes(1); draw();
+      pose(0, null); applyPhysicalPose(); updateEyes(1); fitCamera(); draw();
     }
 
     function animate(now: number) {
@@ -372,12 +381,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       updateLife(delta); stepSpring(delta);
       pose(active ? active.elapsed / active.reply.durationMs : idle ? idle.elapsed / idle.duration : 0, active?.reply.action ?? idle?.action ?? null);
       applyPhysicalPose(); updateEyes(delta); updateFeeling(delta);
-      // 拉伸时轻微放宽镜头，避免原本大体量的角色在边缘被裁切。
-      const verticalSpace = camera.top / (1.15 + Math.abs(rig.position.y) + Math.abs(pull.y) * 0.15);
-      const horizontalSpace = camera.right / (1.25 + Math.abs(rig.position.x) + (fieldKind === 'pinch' ? Math.abs(pull.x) : 0));
-      const targetZoom = Math.min(1, verticalSpace, horizontalSpace);
-      const zoom = camera.zoom + (targetZoom - camera.zoom) * (1 - Math.exp(-12 * delta));
-      if (Math.abs(camera.zoom - zoom) > 0.0001) { camera.zoom = zoom; camera.updateProjectionMatrix(); }
+      // 快速变形时放宽镜头，保留一整颗团子与小手小脚。
+      fitCamera(delta);
       draw(); requestFrame();
     }
     function visibilityChanged() { if (document.hidden) stop(); else { draw(); requestFrame(); } }
@@ -483,7 +488,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         const width = Math.max(1, host.clientWidth); const height = Math.max(1, host.clientHeight);
         // 短屏优先用满纵向空间；窄屏仍为向外挥动的小手保留横向边界。
         const aspect = width / height; const halfHeight = Math.max(1.13, 1.28 / aspect) * SETTINGS.viewPadding;
-        camera.left = -halfHeight * aspect; camera.right = halfHeight * aspect; camera.top = halfHeight; camera.bottom = -halfHeight; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); draw();
+        camera.left = -halfHeight * aspect; camera.right = halfHeight * aspect; camera.top = halfHeight; camera.bottom = -halfHeight; camera.updateProjectionMatrix(); renderer.setSize(width, height, false); if (reduced) renderDirect(); else { fitCamera(); draw(); }
       };
       controller = {
         dispose,
@@ -547,7 +552,15 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           if (reduced) { active = null; renderDirect(); staticTimer = setTimeout(() => { if (!disposed) { setExpression(baseExpression(currentMood)); renderDirect(); } }, next.durationMs); }
           else { active = { reply: next, elapsed: 0 }; requestFrame(); }
         },
-        look(x, y) { if (!disposed && !reduced) { if (!hasLook && Math.abs(x) + Math.abs(y) > 0.01) { wake = 1; lastContact = time; } pointerX = THREE.MathUtils.clamp(x, -1, 1); pointerY = THREE.MathUtils.clamp(y, -1, 1); hasLook = Math.abs(x) + Math.abs(y) > 0.00001; requestFrame(); } },
+        look(x, y) {
+          if (disposed || reduced) return;
+          if (Math.hypot(x - pointerX, y - pointerY) > 0.025) {
+            if (time - lastContact > DYNAMICS.sleepAfterSeconds) wake = 1;
+            lastContact = time; idle = null; nextIdle = time + DYNAMICS.idleMinimumSeconds;
+          }
+          pointerX = THREE.MathUtils.clamp(x, -1, 1); pointerY = THREE.MathUtils.clamp(y, -1, 1);
+          hasLook = Math.abs(x) + Math.abs(y) > 0.00001; requestFrame();
+        },
       };
       resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host);
       if ('IntersectionObserver' in window) { observer = new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; if (inView) { draw(); requestFrame(); } else stop(); }, { threshold: 0.01 }); observer.observe(host); }
