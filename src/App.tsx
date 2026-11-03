@@ -85,6 +85,8 @@ function Application() {
   const savingDraft = useRef<symbol | null>(null);
   const savingCare = useRef<symbol | null>(null);
   const heading = headings[location.pathname] ?? '片刻';
+  // 无字贴纸也是草稿，刷新/关闭提示与活动关联使用同一个判断。
+  const hasDraft = Boolean(form.mood || form.note || form.feelings.length || form.contexts.length || editing);
 
   useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(null), 5500); return () => clearTimeout(timer); }, [notice]);
   useEffect(() => { const changed = () => setOnline(navigator.onLine); window.addEventListener('online', changed); window.addEventListener('offline', changed); return () => { window.removeEventListener('online', changed); window.removeEventListener('offline', changed); }; }, []);
@@ -93,7 +95,7 @@ function Application() {
   useLayoutEffect(() => { if (previousUser.current && previousUser.current !== session.user) { setForm(emptyComposer()); setEditing(null); setLastSaved(null); setDeleting(null); setRemoving(false); setPendingCare(null); setAuthGate(null); savingDraft.current = null; savingCare.current = null; } previousUser.current = session.user; }, [session.user]);
   // 即使在账号页切换身份，也立即释放前一人的画作；普通路由切换继续保留。
   useLayoutEffect(() => { selectDrawingOwner(session.user?.uid ?? 'guest'); }, [session.user?.uid]);
-  useEffect(() => { const leave = (event: BeforeUnloadEvent) => { if (form.note || editing) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', leave); return () => window.removeEventListener('beforeunload', leave); }, [form.note, editing]);
+  useEffect(() => { const leave = (event: BeforeUnloadEvent) => { if (hasDraft) { event.preventDefault(); event.returnValue = ''; } }; window.addEventListener('beforeunload', leave); return () => window.removeEventListener('beforeunload', leave); }, [hasDraft]);
 
   /** 先检查登录，再检查内容；访客即使尚未选情绪也能看到明确的保存说明。 */
   function canSave(returnTo: '/' | '/care') {
@@ -161,7 +163,6 @@ function Application() {
   }
   function loadLatest() { const current = journal.entries.find(entry => entry.id === editing?.id); if (current) beginEdit(current); else onNotice('原记录已删除，当前草稿可以另存一条。'); }
   // 新草稿不能再关联上一条已保存日记，避免关怀反馈串联到错误情绪。
-  const hasDraft = Boolean(form.mood || form.note || form.feelings.length || form.contexts.length || editing);
   const careEntryId = hasDraft ? null : lastSaved;
   /** 初次读取失败显示重连入口，不能把网络失败当作账号没有记录。 */
   const recordLoadError = <div className="empty-state" role="alert"><h2>暂时无法读取记录</h2><p>检查网络后重试，当前草稿仍在。</p><button className="secondary-button" onClick={journal.retry}>重新连接</button></div>;
