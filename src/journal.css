@@ -1,0 +1,69 @@
+/* 小纸条的颜色、贴纸尺寸与轻反馈时长集中设置，字体沿用主页面圆体。 */
+:root { --notebook-paper: #fffef9; --notebook-border: #e5e8db; --notebook-sticker-height: 92px; --notebook-pat-duration: 650ms; --notebook-receipt-duration: 700ms; }
+.journal-stamp { display: block; width: 84px; height: 84px; flex-shrink: 0; color: var(--ink); }
+.home-page .journal-notebook { max-width: 720px; padding-top: 0; border-top: 0; }
+.notebook-welcome { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
+.notebook-companion { position: relative; flex: 0 0 auto; padding: 0; border: 0; background: none; transform: rotate(-6deg); }
+.notebook-companion:hover { transform: rotate(0deg); }
+.notebook-companion.is-patted .journal-stamp { animation: notebook-pat var(--notebook-pat-duration) ease-in-out; }
+.notebook-pat-heart { position: absolute; top: 7px; right: 4px; color: #c4877b; fill: #f4d7ce; opacity: 0; }
+.notebook-companion.is-patted .notebook-pat-heart { animation: notebook-heart var(--notebook-pat-duration) ease-out both; }
+.notebook-eyebrow { margin: 0 0 4px; color: var(--ink-soft); font-size: 14px; }
+.notebook-greeting { margin: 0; font-size: 22px; line-height: 1.5; }
+.notebook-tabs { display: flex; gap: 6px; padding: 5px; border-radius: 22px; background: #eaf0eb; }
+.notebook-tabs > button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 46px; padding: 9px 7px; border: 1px solid transparent; border-radius: 18px; background: none; color: var(--ink-soft); font-size: 18px; }
+.notebook-tabs > button.is-active { background: var(--notebook-paper); color: var(--ink); box-shadow: 0 2px 7px #233d3508; border-color: #e3e8df; }
+.notebook-count { display: grid; place-items: center; min-width: 19px; height: 19px; padding-inline: 4px; border-radius: 50%; background: var(--mint); color: var(--green); font-size: 12px; }
+.notebook-panel { margin-top: 22px; }
+.notebook-section-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 14px; font-size: 18px; }
+.notebook-section-title small { color: var(--muted); font-size: 13px; }
+.notebook-stickers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; }
+.notebook-sticker { --sticker-tint: #edf1e8; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: var(--notebook-sticker-height); padding: 12px 6px; border: 1px solid transparent; border-radius: 18px 20px 17px 22px; background: var(--sticker-tint); font-size: 18px; }
+.notebook-sticker.tone-1 { --sticker-tint: #efedf5; }
+.notebook-sticker.tone-2 { --sticker-tint: #f7eee3; }
+.notebook-sticker.tone-3 { --sticker-tint: #e9eff3; }
+.notebook-sticker-art { display: flex; color: #6c8073; }
+.notebook-sticker.tone-1 .notebook-sticker-art { color: #92839e; }
+.notebook-sticker.tone-2 .notebook-sticker-art { color: #a38155; }
+.notebook-sticker.tone-3 .notebook-sticker-art { color: #728c9a; }
+.notebook-sticker:hover:not(:disabled) { transform: translateY(-3px) rotate(-1deg); }
+.notebook-sticker.is-selected { border-color: #8fae9a; box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px #bed0c2; }
+.notebook-sticker-check { position: absolute; top: 7px; right: 8px; color: var(--green); }
+.notebook-prompts { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 15px; }
+.notebook-prompts button { min-height: 40px; padding: 6px 13px; border: 1px solid #dce5dc; border-radius: 24px; color: var(--ink-soft); background: transparent; font-size: 15px; }
+.notebook-prompts button.is-selected { color: var(--ink); background: #e7eee5; border-color: #b8cbb9; }
+.notebook-paper { position: relative; padding: 21px 23px 15px; border: 1px solid var(--notebook-border); border-radius: 6px 22px 6px 6px; background: var(--notebook-paper); box-shadow: 0 7px 20px #64735e05; }
+.notebook-paper::after { content: ''; position: absolute; top: 0; right: 0; width: 19px; height: 19px; border-left: 1px solid var(--notebook-border); border-bottom: 1px solid var(--notebook-border); border-radius: 0 22px 0 5px; background: #f0f1e7; pointer-events: none; }
+.notebook-question { display: block; font-size: 18px; line-height: 1.65; padding-right: 4px; }
+.journal-notebook .notebook-note { min-height: 168px; max-height: 420px; margin-top: 12px; padding: 6px 0; border: 0; border-radius: 0; background: repeating-linear-gradient(transparent 0, transparent 35px, #e6eadc99 35px, #e6eadc99 36px); font-size: 18px; line-height: 36px; }
+.journal-notebook .notebook-note:focus { background-color: transparent; }
+.notebook-paper-footer, .notebook-bottom { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; color: var(--muted); font-size: 13px; }
+.notebook-paper-footer { padding-top: 12px; }
+.notebook-bottom { margin-top: 15px; }
+.notebook-bottom .text-button { min-height: 40px; padding: 4px; font-size: 14px; }
+.notebook-receipt { display: flex; align-items: center; justify-content: center; gap: 12px; width: min(100%, 460px); margin-top: 16px; color: var(--ink-soft); font-size: 17px; animation: calm-arrive 240ms ease both; }
+.notebook-receipt-art { position: relative; width: 84px; flex-shrink: 0; animation: notebook-receive var(--notebook-receipt-duration) ease-out both; }
+.notebook-receipt-art::after { content: ''; position: absolute; left: 22px; bottom: 13px; width: 40px; height: 23px; border: 1px solid #b2c4ad; border-radius: 3px; background: linear-gradient(150deg, transparent 48%, #ccd9c6 49%, #ccd9c6 51%, transparent 52%) #f8f8ed; transform: rotate(-4deg); }
+.home-page:has(.notebook-receipt) { height: auto; min-height: calc((100svh - var(--home-header-height) - var(--home-dock-space)) * var(--home-height-share)); }
+.home-page:has(.notebook-receipt) .home-stage { flex: 0 0 auto; height: clamp(var(--home-stage-min), 38svh, 560px); }
+/* 轻触印章只做短反馈；页面不会出现持续漂浮或文字跳动。 */
+@keyframes notebook-pat { 0%, 100% { transform: scale(1); } 28% { transform: scale(1.08, .92) rotate(-5deg); } 65% { transform: scale(.97, 1.03) rotate(3deg); } }
+@keyframes notebook-heart { from { opacity: 0; transform: translateY(8px) scale(.8); } 35% { opacity: 1; } to { opacity: 0; transform: translateY(-19px) scale(1.1); } }
+@keyframes notebook-receive { from { opacity: 0; transform: translateY(8px) rotate(4deg); } to { opacity: 1; transform: translateY(0) rotate(-4deg); } }
+@media (max-width: 640px) {
+  :root { --notebook-sticker-height: 88px; }
+  .notebook-welcome { gap: 10px; }
+  .notebook-companion .journal-stamp { width: 72px; height: 72px; }
+  .notebook-greeting { font-size: 19px; }
+  .notebook-tabs > button { font-size: 17px; padding-inline: 3px; }
+  .notebook-stickers { gap: 9px; }
+  .notebook-sticker { font-size: 18px; }
+  .notebook-panel { margin-top: 19px; }
+  .notebook-paper { padding: 19px 16px 14px; }
+  .notebook-prompts { gap: 6px; }
+  .notebook-prompts button { padding-inline: 11px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notebook-companion.is-patted .notebook-pat-heart { opacity: 1; }
+  .notebook-companion *, .notebook-receipt, .notebook-receipt-art { animation: none !important; }
+}
