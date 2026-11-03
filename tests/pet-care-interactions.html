@@ -328,7 +328,11 @@
         }],
         ['逗球先普通接住，多次激活后自然兴奋', async () => {
           await fresh('tease'); let kind = await activate('click'); expect(kind === 'play', '第一次逗球不是普通玩耍');
-          for (let index = 1; index < TEST.maximumPlayActivations && kind !== 'excited'; index += 1) kind = await activate('click');
+          // 以真实收势为下一轮起点；首次递送耗时不能算作模型接球后的冷却时间。
+          for (let index = 1; index < TEST.maximumPlayActivations && kind !== 'excited'; index += 1) {
+            await until(() => phase() === 'cradled', '掌心等候下一次点击', responseTimeoutMs);
+            kind = await activate('click');
+          }
           await expectResponse('excited');
           await until(() => phase() === 'cradled', '完成后留在掌心');
           expect(!prop().disabled, '掌心里的球被锁住，不能点击或重抓');
