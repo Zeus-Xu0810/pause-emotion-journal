@@ -117,6 +117,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     let petResting: 'drowsy' | 'asleep' | null = null;
     let petWakeFrom: 'drowsy' | 'asleep' | null = null; let petReach = 0; let lastPetResponseId: number | null = null;
     let petAwaiting = false; let petDragging = false; let petPointer: PetPoint | null = null;
+    let petQueuedEvent: { kind: PetEventKind; at: number; activity: PetActivity | null } | null = null;
     let petLastPointer: PetPoint | null = null; let petTravel = 0;
     let petDelivery: { kind: 'bite' | 'catch'; elapsed: number; start: THREE.Vector3 } | null = null;
     let petStaticTimer: ReturnType<typeof setTimeout> | null = null; let petStaticStarted: number | null = null;
@@ -365,8 +366,12 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         petPoseCandidate.arms.forEach((arm, index) => { petCaughtPose.arms[index].position.copy(arm.position); petCaughtPose.arms[index].rotation.copy(arm.rotation); });
         petHasCaughtPose = true;
       }
-      // 先锁再回调，React稍后给回应或null ACK，碰撞不会每帧重复发送。
-      petAwaiting = true; options.onPetEvent({ kind, at: performance.now() });
+      // 本帧完整绘制接触姿态后再交付ACK，不能从碰撞栈中同步重入render并混用两份姿态。
+      const queued = { kind, at: performance.now(), activity: petActivity }; petQueuedEvent = queued; petAwaiting = true;
+      queueMicrotask(() => {
+        if (disposed || !petAwaiting || petQueuedEvent !== queued || petActivity !== queued.activity) return;
+        petQueuedEvent = null; options.onPetEvent?.({ kind: queued.kind, at: queued.at });
+      });
     }
     function petSoothing(kind: MascotGesture, hit?: MascotHit) { return petActivity === 'sleep' && (kind === 'pat' || kind === 'poke' && hit?.region === 'head'); }
     function interruptPet(kind: MascotGesture, hit?: MascotHit) {
@@ -595,7 +600,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         refreshPet();
       }
     }
-    function refreshPet() { if (reduced) { renderDirect(); resumePetTimer(); } else { updatePetProps(1 / 60); draw(); requestFrame(); } }
+    // 常态渲染只由RAF统一推进；事件只改意图，避免一帧先画旧身体配新道具、再画新身体。
+    function refreshPet() { if (reduced) { renderDirect(); resumePetTimer(); } else requestFrame(); }
     function petRespond(response: PetResponse | null) {
       if (disposed) return;
       const acknowledging = petAwaiting;
