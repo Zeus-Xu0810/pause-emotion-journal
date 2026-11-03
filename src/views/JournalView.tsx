@@ -67,13 +67,13 @@ export default function JournalView({ entries, onEdit, onDelete, onCreate }: { e
             <JournalStamp mood={entry.mood} className="journal-entry-stamp" />
             <div className="entry-summary-copy">
               <div className="entry-mood"><h2>{meta.label}</h2></div>
-              {(entry.note || entry.feelings.length === 0) && <p className="entry-text entry-preview">{entry.note || '只记了心情'}</p>}
+              {(entry.note || entry.feelings.length === 0) && <p className="entry-text entry-preview">{entry.note || '这一刻，先用心情记着'}</p>}
               {/* 摘要只显示已选感受与情境，不根据分数推测或生成心理结论。 */}
               {(previewFeelings.length > 0 || previewContexts.length > 0) && <div className="entry-tags entry-preview-tags">{previewFeelings.map(item => <span className="is-feeling" key={`feeling-${item}`}>{item}</span>)}{previewContexts.map(item => <span className="is-context" key={`context-${item}`}>{item}</span>)}</div>}
             </div>
             <ChevronDown size={17} className="entry-chevron" aria-hidden="true" />
           </summary>
-          <div className="entry-detail"><p className="entry-text">{entry.note || '只记了心情'}</p>{(entry.feelings.length > 0 || entry.contexts.length > 0) && <div className="entry-tags">{entry.feelings.map(item => <span className="is-feeling" key={`feeling-${item}`}>{item}</span>)}{entry.contexts.map(item => <span className="is-context" key={`context-${item}`}>{item}</span>)}</div>}<div className="entry-detail-actions"><button className="text-button" aria-label={`编辑${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onEdit(entry)}><Pencil size={15} />编辑</button><button className="text-button" aria-label={`删除${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onDelete(entry)}><Trash2 size={15} />删除</button></div></div>
+          <div className="entry-detail"><p className="entry-text">{entry.note || '这一刻，先用心情记着'}</p>{(entry.feelings.length > 0 || entry.contexts.length > 0) && <div className="entry-tags">{entry.feelings.map(item => <span className="is-feeling" key={`feeling-${item}`}>{item}</span>)}{entry.contexts.map(item => <span className="is-context" key={`context-${item}`}>{item}</span>)}</div>}<div className="entry-detail-actions"><button className="text-button" aria-label={`编辑${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onEdit(entry)}><Pencil size={15} />编辑</button><button className="text-button" aria-label={`删除${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onDelete(entry)}><Trash2 size={15} />删除</button></div></div>
         </details>
       </article>;
     })}</div>}
