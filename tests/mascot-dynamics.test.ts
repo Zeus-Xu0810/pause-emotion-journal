@@ -29,3 +29,21 @@ test('软边界连续、保留方向并在大位移时逐渐减小增量', () =>
   assert.ok(mascotSoftLimit(0.2, 0.8) > 0.19);
   assert.ok(mascotSoftLimit(1.2, 0.8) - mascotSoftLimit(1, 0.8) < mascotSoftLimit(0.2, 0.8));
 });
+
+
+test('30、60、120帧下同一次拖放的回弹峰值与收敛时长保持接近', () => {
+  const records = [30, 60, 120].map(fps => {
+    const axis = { value: 0, velocity: 0 }; let minimum = 0; let settledAt = 0;
+    for (let frame = 0; frame < fps / 5; frame += 1) advanceMascotSpring(axis, 0.6, 1 / fps, SETTINGS.heldStiffness, SETTINGS.heldDamping);
+    for (let frame = 0; frame < fps * 3; frame += 1) {
+      advanceMascotSpring(axis, 0, 1 / fps, SETTINGS.releaseStiffness, SETTINGS.releaseDamping);
+      minimum = Math.min(minimum, axis.value);
+      if (!settledAt && Math.abs(axis.value) + Math.abs(axis.velocity) < 0.005) settledAt = (frame + 1) / fps;
+    }
+    return { minimum, settledAt };
+  });
+  for (const item of records) {
+    assert.ok(Math.abs(item.minimum / records[1].minimum - 1) < 0.1);
+    assert.ok(Math.abs(item.settledAt / records[1].settledAt - 1) < 0.1);
+  }
+});

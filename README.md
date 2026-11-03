@@ -69,3 +69,13 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 
 
 本次验证：55项单元测试、账号夹具8项浏览器回归、认证异步竞态10项内存模拟检查，以及真实云端22项临时账号烟雾检查通过。云端检查使用管理员生成的验证/重置链接，不代表真实收件箱送达测试；临时账号与文档均已清理。页面在602×689、390×844、1920×1080、2560×1440布局下检查：首页保存可见，日记展开筛选无横向溢出，手机数据态趋势和情境回看正常。
+
+
+## 软糯伙伴互动升级（2026-11-03）
+
+- 随心模式可直接抓身体/肚皮、拉脸和摸头，肚皮来回挠会转为笑痒反应；按住过程即反馈，短文字冷却不拦截动作。
+- 身体重心和局部软肉分用弹簧：提起时倾斜摆脚，松手有惯性和余振，连续换部位不会把旧脸颊形变搬过去。脸、眉、嘴、小手跟随同一曲面。
+- 自主眨眼使用不等间隔，闲置有小幅呼吸、重心与目光变化，久置打盹、重新逗弄会醒来；这些状态只在当前页面，不形成账号数据。
+- 低动态仍可直接抓取、捏脸并自动调整取景，停用自主动作与余振；WebGL失败则使用可玩的CSS后备，默认不发声音。
+- 本次检查覆盖64项单元测试、6项无WebGL浏览器回归、真实3D指针抓取/捏脸及不同屏幕下的保存位置。物理测试另核对30/60/120帧回弹差异与极值曲面朝向，实体手机多指体验尚未实机测试。
+- 动画设计参考：[Pixar挤压与拉伸](https://www.khanacademy.org/computing/pixar/animate/ball/v/animate-4)、[Animation Mentor跟随与重叠](https://www.animationmentor.com/blog/follow-through-and-overlapping-action-the-12-basic-principles-of-animation/)、[Three.js缓动接口](https://threejs.org/docs/pages/MathUtils.html#damp)。
