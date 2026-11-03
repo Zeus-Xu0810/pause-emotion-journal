@@ -3,7 +3,7 @@ import { MASCOT_SETTINGS, type MascotExpression } from '../mascot-content';
 import type { MoodScore } from '../types';
 import type { MascotBounds, MascotGesture, MascotHit, MascotManipulation, MascotPoint } from '../lib/mascot-interaction-types';
 import type { PetActivity, PetEvent, PetEventKind, PetInput, PetPoint, PetPropPhase, PetResponse, PetTargets } from '../lib/pet-care';
-import { advancePetFlight, createPetFlight, isPetFlightResting, PET_FLIGHT_SETTINGS, sweptPetCatch, type PetFlight } from '../lib/pet-flight';
+import { advancePetFlight, createPetFlight, isPetFlightResting, sweptPetCatch, type PetFlight } from '../lib/pet-flight';
 import { samplePetMeal } from '../lib/pet-performance';
 
 /** 后备团子的形状、命中区域和动作范围集中设置，绘制与命中共用同一份几何。 */
@@ -33,6 +33,7 @@ const FALLBACK = {
     handHoldSeconds: 0.22,
     handToMouthSeconds: 0.44,
     keyboardFlightSeconds: 0.5,
+    keyboardArc: 0.12,
     throwBackX: 0.82,
     throwBackY: -0.85,
     handReachPx: 20,
@@ -142,7 +143,7 @@ type ElementRef<T extends HTMLElement> = RefObject<T | null>;
 type CareHand = 'left' | 'right';
 interface CareMotion {
   activity: PetActivity; phase: PetPropPhase; flight: PetFlight; scale: number; eligible: boolean;
-  stage: 'hand' | 'mouth' | 'eat' | 'ball' | 'wake' | null;
+  stage: 'deliver' | 'hand' | 'mouth' | 'eat' | 'ball' | 'wake' | null;
   elapsed: number; duration: number; clock: number; ignoreUntil: number; responseId: number | null; variant: number; alertUntil: number;
   hand: CareHand; from: PetPoint; grip: { at: number; point: PetPoint; travel: number } | null;
 }
@@ -251,9 +252,9 @@ function useFallbackCare(options: FallbackCareOptions) {
         if (activity === 'sleep') { emit(state, 'soothe'); return; }
         const target = anchors();
         const side = Math.hypot(target.left.x - state.flight.x, target.left.y - state.flight.y) < Math.hypot(target.right.x - state.flight.x, target.right.y - state.flight.y) ? 'left' : 'right';
-        chooseHand(state, side); state.stage = null; state.scale = 1; state.eligible = true; state.ignoreUntil = state.clock;
-        const duration = FALLBACK.care.keyboardFlightSeconds;
-        state.flight = createPetFlight(state.flight, { x: (target[side].x - state.flight.x) / duration, y: (target[side].y - state.flight.y - 0.5 * PET_FLIGHT_SETTINGS.gravity * duration ** 2) / duration });
+        chooseHand(state, side); state.stage = 'deliver'; state.elapsed = 0; state.scale = 1; state.eligible = true; state.ignoreUntil = state.clock;
+        // 一键递送跟随当前手掌，避免上一次手部动画让预先计算的抛物线投空；自由甩动仍走真实物理。
+        state.from = { x: state.flight.x, y: state.flight.y }; state.flight = createPetFlight(state.flight, { x: 0, y: 0 });
         setMotionPhase(state, 'flight'); return;
       }
       if (next.type === 'start') { state.stage = null; state.eligible = true; state.scale = 1; state.grip = { at: performance.now(), point: next.point ?? state.flight, travel: 0 }; state.flight.vx = 0; state.flight.vy = 0; setMotionPhase(state, 'held'); }
@@ -284,7 +285,12 @@ function useFallbackCare(options: FallbackCareOptions) {
     const advance = (state: CareMotion, delta: number) => {
       state.clock += delta; state.elapsed += delta;
       const target = anchors();
-      if (state.stage === 'hand') {
+      if (state.stage === 'deliver') {
+        const amount = Math.min(1, state.elapsed / FALLBACK.care.keyboardFlightSeconds); const smooth = amount * amount * (3 - 2 * amount);
+        const previousPoint = { x: state.flight.x, y: state.flight.y }; const hand = target[state.hand];
+        setPosition(state, { x: state.from.x + (hand.x - state.from.x) * smooth, y: state.from.y + (hand.y - state.from.y) * smooth - Math.sin(amount * Math.PI) * FALLBACK.care.keyboardArc });
+        catchAlong(state, previousPoint, state.flight);
+      } else if (state.stage === 'hand') {
         setPosition(state, target[state.hand]);
         if (state.elapsed >= FALLBACK.care.handHoldSeconds) { state.stage = 'mouth'; state.elapsed = 0; state.from = { x: state.flight.x, y: state.flight.y }; }
       } else if (state.stage === 'mouth') {
