@@ -19,7 +19,7 @@ interface Bubble { id: number; text: string; durationMs: number }
 /** 主工具只留四个短入口，其他小动作折叠；可调交互阈值统一来自内容配置。 */
 const MAIN_MODES: { mode: MascotMode; label: string }[] = [{ mode: 'auto', label: '随心' }, { mode: 'pinch', label: '捏脸' }, { mode: 'drag', label: '拽拽' }, { mode: 'pat', label: '摸摸' }];
 const CARE_ACTIVITIES = [{ kind: 'feed', label: '喂食', icon: Apple }, { kind: 'tease', label: '逗玩', icon: CircleDot }, { kind: 'sleep', label: '哄睡', icon: Moon }] as const;
-const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '把点心递到嘴边，或按回车喂一口', tease: '移动小球逗团子，或按回车递球', sleep: '慢慢摇晃月亮哄睡，或按回车轻摇' };
+const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '轻触点心喂一口，也可拖到嘴边或按回车', tease: '轻触小球递球，也可拖动逗玩或按回车', sleep: '轻触月亮安抚，也可慢慢摇晃或按回车' };
 const baseExpression = (mood: MoodScore | null): MascotExpression => mood !== null && mood <= 3 ? 'soft' : 'happy';
 
 /** 团子只读情绪来共情；任何鼠标、触屏或键盘动作都不选择评分或写入日记。 */

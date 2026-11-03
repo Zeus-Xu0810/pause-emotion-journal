@@ -5,7 +5,7 @@ import type { PetActivity, PetEvent, PetInput, PetPoint, PetResponse, PetTargets
 import type { MascotGesture, MascotSceneController } from './mascot-interaction-types';
 
 /** DOM接入阈值集中设置；真实3D命中仍由场景判断，此处只处理无WebGL后备。 */
-const INPUT = { foodReachShare: 0.065, ballReachShare: 0.1, sleepMinimumMs: 320, sleepTravel: 0.16, keyboardHintMs: 3600 };
+const INPUT = { foodReachShare: 0.065, ballReachShare: 0.1, sleepMinimumMs: 320, sleepTravel: 0.16, keyboardHintMs: 3600, tapMaximumPx: 6, tapMaximumMs: 420 };
 export const PET_ACTIVITY_HINTS: Record<PetActivity, string> = { feed: '把小点心递到嘴边吧', tease: '小球动一动，我来接', sleep: '慢慢摇摇，陪它放松' };
 interface PetCareOptions {
   scene: RefObject<MascotSceneController | null>;
@@ -14,7 +14,7 @@ interface PetCareOptions {
   say: (text: string, duration?: number) => void;
   beforeSelect: () => void;
 }
-interface PropGrip { id: number; start: number; point: PetPoint; travel: number }
+interface PropGrip { id: number; start: number; point: PetPoint; travel: number; travelPx: number }
 
 /** 页面内记忆与可访问的道具输入桥接；不读写账号、日记或浏览器持久存储。 */
 export function usePetCare(options: PetCareOptions) {
@@ -104,16 +104,21 @@ export function usePetCare(options: PetCareOptions) {
   function pointerDown(input: PointerEvent<HTMLButtonElement>) {
     if (input.button !== 0 || grip.current) return;
     input.preventDefault(); input.stopPropagation();
-    const point = pointAt(input.clientX, input.clientY); grip.current = { id: input.pointerId, start: performance.now(), point, travel: 0 };
+    const point = pointAt(input.clientX, input.clientY); grip.current = { id: input.pointerId, start: performance.now(), point, travel: 0, travelPx: 0 };
     input.currentTarget.setPointerCapture(input.pointerId); send({ type: 'start', point });
   }
   function pointerMove(input: PointerEvent<HTMLButtonElement>) {
     const current = grip.current; if (!current || current.id !== input.pointerId) return;
-    input.preventDefault(); const point = pointAt(input.clientX, input.clientY); current.travel += Math.hypot(point.x - current.point.x, point.y - current.point.y); current.point = point; send({ type: 'move', point });
+    input.preventDefault(); const point = pointAt(input.clientX, input.clientY); current.travel += Math.hypot(point.x - current.point.x, point.y - current.point.y); const host = latest.current.host.current; current.travelPx += Math.hypot((point.x - current.point.x) * (host?.clientWidth ?? 1) / 2, (point.y - current.point.y) * (host?.clientHeight ?? 1) / 2); current.point = point; send({ type: 'move', point });
   }
   function pointerUp(input: PointerEvent<HTMLButtonElement>) {
     if (grip.current?.id !== input.pointerId) return;
-    send({ type: 'release', point: pointAt(input.clientX, input.clientY) }); grip.current = null;
+    const current = grip.current; const point = pointAt(input.clientX, input.clientY); const host = latest.current.host.current;
+    const travelPx = current.travelPx + Math.hypot((point.x - current.point.x) * (host?.clientWidth ?? 1) / 2, (point.y - current.point.y) * (host?.clientHeight ?? 1) / 2);
+    // 轻触同样可以递食/递球，拖动则保留真实落点判定，减少只会拖拽的门槛。
+    if (travelPx <= INPUT.tapMaximumPx && performance.now() - current.start <= INPUT.tapMaximumMs) { send({ type: 'cancel' }); send({ type: 'activate' }); }
+    else send({ type: 'release', point });
+    grip.current = null;
     try { if (input.currentTarget.hasPointerCapture(input.pointerId)) input.currentTarget.releasePointerCapture(input.pointerId); } catch { /* 浏览器可隐式释放。 */ }
   }
   function click(input: MouseEvent<HTMLButtonElement>) { if (input.detail === 0) send({ type: 'activate' }); }
