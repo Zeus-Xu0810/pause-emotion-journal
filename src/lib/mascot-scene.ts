@@ -277,7 +277,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     function updatePetReach(delta: number) {
       const eating = petAction?.response.kind === 'eat';
       const target = eating ? 1 - THREE.MathUtils.smoothstep(petPhase(), 0.82, 1) : petActivity === 'feed' && (petDragging || petDelivery || petAwaiting) ? 1 : 0;
-      petReach += (target - petReach) * (reduced ? 1 : 1 - Math.exp(-14 * delta));
+      petReach += (target - petReach) * (reduced ? 1 : 1 - Math.exp(-PET.pose.reachFollowSpeed * delta));
     }
     function advancePet(delta: number) {
       if (petAction) {
@@ -314,7 +314,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       if (kind === 'tired') { rig.rotation.x += 0.1 * pulse; arms.forEach(arm => { arm.rotation.z *= 0.4; }); }
       if (petResting || kind === 'wake' && petWakeFrom) {
         const resting = petResting ?? petWakeFrom;
-        const settle = kind === 'wake' ? 1 - THREE.MathUtils.smoothstep(phase, 0, 0.4) : petAction ? THREE.MathUtils.smoothstep(phase, 0, 0.8) : 1;
+        const settle = kind === 'wake' ? 1 - THREE.MathUtils.smoothstep(phase, 0, PET.pose.wakeReleasePhase) : petAction ? THREE.MathUtils.smoothstep(phase, 0, 0.8) : 1;
         rig.rotation.z -= settle * (resting === 'asleep' ? PET.pose.sleepTilt : PET.pose.sleepTilt * 0.46); rig.position.y -= settle * 0.025;
         arms.forEach((arm, index) => { arm.position.x = THREE.MathUtils.lerp(arm.position.x, (index === 0 ? -1 : 1) * 0.57, settle); arm.position.z = THREE.MathUtils.lerp(arm.position.z, PET.pose.foldedHandFront, settle); arm.rotation.z += (index === 0 ? -1 : 1) * settle * 0.38; });
       }
@@ -406,7 +406,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const family = response.kind === 'eat' || response.kind === 'full' ? 'feed' : ['play', 'excited', 'tired'].includes(response.kind) ? 'tease' : response.kind === 'drowsy' || response.kind === 'asleep' ? 'sleep' : null;
       if (family && family !== petActivity) return;
       lastPetResponseId = response.id; pausePetTimer(); petDragging = false; petPointer = null; petDelivery = null;
-      if (response.kind === 'wake') { petWakeFrom = petResting; petResting = null; }
+      if (response.kind === 'wake') { petWakeFrom = petResting ?? petWakeFrom; petResting = null; }
       else if (response.kind === 'asleep' || response.kind === 'drowsy') petResting = response.kind;
       else petResting = null;
       if (held && !petSoothing(held.kind, held.hit)) { petAction = null; return; }
@@ -451,7 +451,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           else if (petAction?.response.kind === 'eat') eyes[index].scale.y *= 0.78;
           else if (petAction?.response.kind === 'full' || petAction?.response.kind === 'tired') eyes[index].scale.y *= 0.65;
           else if (petAction?.response.kind === 'excited') eyes[index].scale.y *= 1.12;
-          else if (petAction?.response.kind === 'wake' && petWakeFrom) eyes[index].scale.y *= THREE.MathUtils.lerp(petWakeFrom === 'asleep' ? 0.045 : 0.3, 1, THREE.MathUtils.smoothstep(petPhase(), 0, 0.35));
+          else if (petAction?.response.kind === 'wake' && petWakeFrom) eyes[index].scale.y *= THREE.MathUtils.lerp(petWakeFrom === 'asleep' ? 0.045 : 0.3, 1, THREE.MathUtils.smoothstep(petPhase(), 0, PET.pose.wakeEyePhase));
         }
       }
     }
@@ -786,7 +786,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         setPetActivity(activity) {
           if (disposed || activity === petActivity) return;
           pausePetTimer(); petActivity = activity; petDragging = false; petPointer = null; petLastPointer = null;
-          petDelivery = null; petAwaiting = false; petResting = null;
+          petDelivery = null; petAwaiting = false; if (petResting) petWakeFrom = petResting; petResting = null;
           if (petAction?.response.kind !== 'wake') petAction = null;
           active = null; idle = null; lastContact = time;
           if (petProps) {

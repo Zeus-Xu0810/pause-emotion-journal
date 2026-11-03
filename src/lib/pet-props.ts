@@ -11,7 +11,8 @@ export const PET_RENDER_SETTINGS = {
   stagePaddingPx: 12, minimumTargetRadiusPx: 22,
   sootheTravelPx: 12, moonTravel: 0.23,
   staticResponsePhase: 0.58,
-  pose: { foldedHandFront: 0.72, feedingHandFront: 0.8, playingHandFront: 0.65, sleepTilt: 0.12, chewCycles: 5, fullShake: 0.12, wakeStretch: 0.85 },
+  pose: {
+    reachFollowSpeed: 14, wakeReleasePhase: 0.4, wakeEyePhase: 0.35, foldedHandFront: 0.72, feedingHandFront: 0.8, playingHandFront: 0.65, sleepTilt: 0.12, chewCycles: 5, fullShake: 0.12, wakeStretch: 0.85 },
 };
 export interface PetPropRig {
   root: THREE.Group;
