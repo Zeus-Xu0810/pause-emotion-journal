@@ -512,7 +512,10 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         const hand = petCatchSide < 0 ? petLeftReceive : petHandReceive;
         if (petCatchSide && phase < 0.1) petArcPoint(petAction.start, hand, phase / 0.1, PET.deliveryArc * 0.3, object.position);
         else petArcPoint(petCatchSide ? hand : petAction.start, petMouthReceive, Math.max(0, (phase - (petCatchSide ? 0.1 : 0)) / (petCatchSide ? 0.1 : 0.2)), PET.deliveryArc * 0.3, object.position);
-        const scale = samplePetMeal(phase, petAction.response.variant).size; object.scale.setScalar(scale); object.visible = scale > 0.015;
+        // 吃完的点心在托盘处补充，不能在嘴边突然变回完整的一颗再飞回去。
+        const scale = phase < PET.mealRegrowStart ? samplePetMeal(phase, petAction.response.variant).size : THREE.MathUtils.smoothstep(phase, PET.mealRegrowStart, 1);
+        if (phase >= PET.mealRegrowStart) object.position.copy(petHome);
+        object.scale.setScalar(scale); object.visible = scale > 0.015;
       } else if (petAction?.response.kind === 'full') {
         const phase = petPhase();
         const hand = petCatchSide < 0 ? petLeftReceive : petCatchSide > 0 ? petHandReceive : petMouthReceive;

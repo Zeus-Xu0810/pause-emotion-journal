@@ -11,6 +11,7 @@ export const PET_RENDER_SETTINGS = {
   stagePaddingPx: 12, minimumTargetRadiusPx: 22,
   sootheTravelPx: 12, moonTravel: 0.23,
   staticResponsePhase: 0.58,
+  mealRegrowStart: 0.93,
   ballPlay: { handX: 0.58, handY: 0.06, handFront: 0.68, skinClearance: 0.035, bodyBob: 0.035 },
   flight: { catchGraceSeconds: 0.16, catchRadius: 0.23, predictSeconds: 0.16, pursuitStiffness: 90, pursuitDamping: 15, jumpMaximum: 0.32, pickupAfterSeconds: 1.35, returnAfterPhase: 0.54, returnVelocityX: 1.1, returnVelocityY: -1.25, handFollowSpeed: 13 },
   pose: {

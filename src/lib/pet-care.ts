@@ -38,9 +38,9 @@ export const PET_CARE_SETTINGS = {
   responses: {
     eat: { durationMs: 1600, intensity: 0.55, texts: ['啊呜，甜甜的', '再来一小口', '这一口慢慢嚼'] },
     full: { durationMs: 1900, intensity: 0.3, texts: ['肚子圆圆啦，留一点下次吃', '吃饱啦，陪我坐会儿', '这口先替我收好嘛'] },
-    play: { durationMs: 1500, intensity: 0.5, texts: ['抓到啦，嘿', '小团子也很灵活吧', '再陪我玩一小下'] },
-    excited: { durationMs: 1800, intensity: 0.75, texts: ['眼睛都亮起来啦', '咻，我来接住', '今天有点小雀跃'] },
-    tired: { durationMs: 2100, intensity: 0.35, texts: ['呼，想歇一小会儿', '慢一点嘛，我陪着你', '先坐坐，再一起玩'] },
+    play: { durationMs: 1500, intensity: 0.5, texts: ['看我转个小圈圈', '拍拍，小球弹回来啦', '左手右手，都接住啦'] },
+    excited: { durationMs: 1800, intensity: 0.75, texts: ['转起来啦，嘿', '咚，弹得好轻巧', '传给另一只小手'] },
+    tired: { durationMs: 2100, intensity: 0.35, texts: ['慢慢转一圈就好', '轻轻拍两下就歇会儿', '慢慢传，我接得住'] },
     drowsy: { durationMs: 2100, intensity: 0.4, texts: ['嗯，轻轻摸就好', '眼皮有点沉啦', '再陪我安静一会儿'] },
     asleep: { durationMs: 4800, intensity: 0.25, texts: ['呼……睡一小会儿', '抱着软软的梦睡啦', '我先眯一下，就在这里'] },
     wake: { durationMs: 1800, intensity: 0.45, texts: ['嗯？我醒啦', '伸个懒腰，看到你啦', '醒来先靠你近一点'] },
