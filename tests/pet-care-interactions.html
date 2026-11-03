@@ -35,6 +35,7 @@
       </div>
       <div id="pet-care-mount"></div>
       <p id="pet-care-current" role="status">每项会重建组件，彼此不共享宠物记忆。</p>
+      <p id="pet-care-raf" class="fixture-note">RAF 间隔：采样中…</p>
       <ol id="pet-care-results" aria-live="polite"></ol>
       <details><summary>事件与坐标诊断</summary><pre id="pet-care-diagnostics">尚未运行</pre></details>
       <p class="fixture-note">仅本页让 WebGL getContext 返回 null，Canvas 2D 原样保留。编号 ≥ 8000 的合成指针使用捕获替身，真实指针仍调用原生方法。KeyboardEvent 不具备可信事件的默认激活，因此以原生 button.click() 补齐一次 Enter 激活，始终尊重 disabled。不读取 React 状态、不访问账号或云服务。</p>
@@ -68,6 +69,8 @@
         boundsTolerancePx: 2,
         maximumPlayActivations: 5,
         maximumSootheActivations: 5,
+        slowRafMs: 120,
+        maximumRafWarnings: 8,
         emptyPoint: { x: 0.08, y: 0.09 },
       };
       const responseTimeoutMs = Math.max(...Object.values(CARE.responses).map(value => value.durationMs)) + TEST.timeoutMarginMs;
@@ -101,6 +104,7 @@
       const current = document.querySelector('#pet-care-current');
       const results = document.querySelector('#pet-care-results');
       const diagnostics = document.querySelector('#pet-care-diagnostics');
+      const rafDisplay = document.querySelector('#pet-care-raf');
       const runtimeErrors = [];
       let instance = 0;
       let pointerSequence = TEST.syntheticPointerMinimum;
@@ -109,6 +113,9 @@
       let observer = null;
       let responseTrail = [];
       let phaseTrail = [];
+      let phaseEvidence = [];
+      let responseEvidence = [];
+      let lastResponseEvidence = null;
       const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
       const frames = async () => { await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); };
       const expect = (condition, message) => { if (!condition) throw new Error(message); };
@@ -120,6 +127,26 @@
       const prop = () => mount.querySelector('.mascot-care-target');
       const stage = () => mount.querySelector('.mascot-visual-stage');
       const log = (label, value = {}) => { diagnostics.textContent += label + ' ' + JSON.stringify(value) + '\n'; };
+      const rafStats = { count: 0, last: 0, min: Infinity, max: 0, warnings: 0 };
+      let previousRafAt = null;
+      /** RAF只测实际渲染采样间隔，不替换产品时钟，也不改变回应时长。 */
+      function sampleRaf(at) {
+        if (previousRafAt !== null) {
+          const gap = at - previousRafAt;
+          rafStats.count += 1; rafStats.last = gap; rafStats.min = Math.min(rafStats.min, gap); rafStats.max = Math.max(rafStats.max, gap);
+          rafDisplay.textContent = '实际 RAF 间隔：最近 ' + gap.toFixed(1) + 'ms；范围 ' + rafStats.min.toFixed(1) + '—' + rafStats.max.toFixed(1) + 'ms；' + rafStats.count + ' 次采样';
+          rafDisplay.dataset.lastMs = String(gap); rafDisplay.dataset.maxMs = String(rafStats.max);
+          if (running && gap > TEST.slowRafMs && rafStats.warnings++ < TEST.maximumRafWarnings) log('slow RAF', { gapMs: gap, phase: phase(), response: response() });
+        }
+        previousRafAt = at; requestAnimationFrame(sampleRaf);
+      }
+      requestAnimationFrame(sampleRaf);
+      function evidence() {
+        const point = selector => { const node = mount.querySelector(selector); if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 }; };
+        return { at: performance.now(), kind: response(), text: reply(), phase: phase(), propDisabled: prop()?.disabled,
+          propPoint: point('.mascot-care-target'), propWidth: prop()?.getBoundingClientRect().width,
+          leftHand: point('.mascot-static-hand.left'), rightHand: point('.mascot-static-hand.right') };
+      }
       window.addEventListener('error', event => { runtimeErrors.push(event.message); log('runtime error', { message: event.message }); });
       window.addEventListener('unhandledrejection', event => {
         const message = event.reason instanceof Error ? event.reason.message : String(event.reason);
@@ -129,11 +156,12 @@
       /** 条件轮询保持有界；不直接更改时钟、动画、组件状态或disabled属性。 */
       async function until(predicate, label, timeoutMs = TEST.layoutTimeoutMs) {
         const began = performance.now();
-        while (!predicate()) {
+        while (true) {
+          const found = predicate();
+          if (found) return found;
           if (performance.now() - began > timeoutMs) throw new Error(label + '超时；activity=' + activity() + '，response=' + response() + '，phase=' + phase());
           await wait(TEST.pollMs);
         }
-        await frames();
       }
       function shown(node) {
         if (!node || node.hidden) return false;
@@ -152,12 +180,11 @@
         if (activity() !== kind) {
           const label = { feed: '喂食', tease: '逗玩', sleep: '哄睡' }[kind];
           expect(nativeClick(tool(label)), '玩法按钮被禁用：' + label);
-          await frames();
         }
         await until(() => activity() === kind && shown(prop()), '选择' + kind + '和可见道具');
       }
       async function fresh(kind) {
-        observer?.disconnect(); responseTrail = []; phaseTrail = []; lastActivationAt = -Infinity;
+        observer?.disconnect(); responseTrail = []; phaseTrail = []; phaseEvidence = []; responseEvidence = []; lastResponseEvidence = null; lastActivationAt = -Infinity;
         root.render(React.createElement(MoodSculpture, { key: ++instance, mood: null }));
         await frames(); await frames();
         mount.scrollIntoView({ block: 'center', behavior: 'instant' });
@@ -165,9 +192,12 @@
         expect(activity() === 'none' && response() === 'idle', '新场景已残留玩法或回应');
         observer = new MutationObserver(() => {
           const kind = response();
-          if (responseTrail.at(-1) !== kind) responseTrail.push(kind);
+          if (responseTrail.at(-1) !== kind) {
+            responseTrail.push(kind);
+            if (kind !== 'idle') { lastResponseEvidence = evidence(); responseEvidence.push(lastResponseEvidence); log('observed response', lastResponseEvidence); }
+          }
           const nextPhase = phase();
-          if (phaseTrail.at(-1) !== nextPhase) phaseTrail.push(nextPhase);
+          if (phaseTrail.at(-1) !== nextPhase) { phaseTrail.push(nextPhase); phaseEvidence.push(evidence()); }
         });
         observer.observe(sculpture(), { attributes: true, attributeFilter: ['data-pet-response', 'data-pet-phase'] });
         if (kind) await select(kind);
@@ -189,19 +219,25 @@
         await unlocked(); await cooldown();
         const node = prop(); const before = { kind: response(), text: reply() };
         node.focus({ preventScroll: true });
+        const activatedAt = performance.now();
         if (via === 'Enter') {
           const down = keyboard(node, 'keydown', 'Enter');
           if (!down.defaultPrevented) expect(nativeClick(node), 'Enter时道具仍被禁用');
           keyboard(node, 'keyup', 'Enter');
         } else expect(nativeClick(node), '激活时道具仍被禁用');
-        lastActivationAt = performance.now();
-        await until(() => response() !== 'idle' && (response() !== before.kind || reply() !== before.text), '新照顾回应');
-        log('activate', { via, activity: activity(), response: response(), phase: phase(), text: reply() });
-        return response();
+        lastActivationAt = activatedAt;
+        const observed = await until(() => {
+          const recorded = responseEvidence.find(item => item.at >= activatedAt && item.kind !== 'idle' && (item.kind !== before.kind || item.text !== before.text));
+          if (recorded) return recorded;
+          const now = evidence(); return now.kind !== 'idle' && (now.kind !== before.kind || now.text !== before.text) ? now : null;
+        }, '新照顾回应');
+        lastResponseEvidence = observed; log('activate', { via, activity: activity(), ...observed });
+        return observed.kind;
       }
       async function expectResponse(kind) {
-        await until(() => response() === kind, '回应' + kind);
-        expect(Boolean(reply()), '回应没有可见短句');
+        const observed = await until(() => responseEvidence.find(item => item.at >= lastActivationAt && item.kind === kind) ?? (response() === kind ? evidence() : null), '回应' + kind);
+        lastResponseEvidence = observed; log('expected response', observed);
+        expect(Boolean(observed.text), '回应没有可见短句'); return observed;
       }
 
       /** 指针坐标全部来自可见DOM框；按下捕获后继续发到原按钮，不跨到内部状态。 */
@@ -226,15 +262,19 @@
         pointer(node, 'pointermove', id, end); await frames();
         // 递食停在锚点后再放开；末端速度归零，不能把一次瞬移误测成高速甩球。
         await wait(TEST.releaseRestMs);
-        pointer(node, cancel ? 'pointercancel' : 'pointerup', id, end); lastActivationAt = performance.now(); await frames();
+        pointer(node, cancel ? 'pointercancel' : 'pointerup', id, end); lastActivationAt = performance.now();
+        const observed = await until(() => phase() !== 'held' ? evidence() : null, '释放后的公开阶段');
+        log('drag release', observed); return observed;
       }
       /** 用真实rAF分散采样，慢摇速度来自持续运动，不是先长按再瞬移伪造。 */
       async function moveOver(node, id, start, end, durationMs) {
-        const began = performance.now(); let progress = 0;
+        const began = performance.now(); let progress = 0; let samples = 0;
         while (progress < 1) {
           await new Promise(requestAnimationFrame); progress = Math.min(1, (performance.now() - began) / durationMs);
           pointer(node, 'pointermove', id, { x: start.x + (end.x - start.x) * progress, y: start.y + (end.y - start.y) * progress });
+          samples += 1;
         }
+        log('pointer sampling', { requestedMs: durationMs, actualMs: performance.now() - began, samples });
       }
       async function fallAsleep() {
         await select('sleep');
@@ -266,14 +306,16 @@
           const expected = ['eat', 'eat', 'eat', 'full']; const firstBites = [];
           for (const kind of expected) {
             expect(await activate() === kind, '喂食阶段不符，应为' + kind);
-            if (kind === 'eat') firstBites.push(reply());
+            if (kind === 'eat') firstBites.push(lastResponseEvidence.text);
             if (kind === 'eat') {
-              expect(prop().disabled, '进食回应期间没有锁住道具');
-              const previous = reply(); expect(nativeClick(prop()) === false, '夹具不应激活disabled按钮');
-              await frames(); expect(reply() === previous, '禁用时触发了额外回应');
+              expect(lastResponseEvidence.propDisabled === true, '进食回应出现时没有锁住道具');
+              if (response() === 'eat' && phase() === 'eating') {
+                const previous = reply(); expect(nativeClick(prop()) === false, '夹具不应激活disabled按钮');
+                expect(reply() === previous, '禁用时触发了额外回应');
+              }
             } else {
-              expect(['return', 'flight', 'ready'].includes(phase()), '吃饱后没有自然扔回道具');
-              expect(!prop().disabled, '扔回的道具应允许重新抓住');
+              expect(['return', 'flight', 'ready'].includes(lastResponseEvidence.phase), '吃饱后没有自然扔回道具');
+              expect(lastResponseEvidence.propDisabled === false, '扔回的道具应允许重新抓住');
             }
           }
           expect(new Set(firstBites).size === 3, '前三口没有不同短句');
@@ -285,11 +327,11 @@
           await dragTo('.mascot-static-mouth'); await expectResponse('eat');
         }],
         ['逗球先普通接住，多次激活后自然兴奋', async () => {
-          await fresh('tease'); expect(await activate('click') === 'play', '第一次逗球不是普通玩耍');
-          for (let index = 1; index < TEST.maximumPlayActivations && response() !== 'excited'; index += 1) await activate('click');
+          await fresh('tease'); let kind = await activate('click'); expect(kind === 'play', '第一次逗球不是普通玩耍');
+          for (let index = 1; index < TEST.maximumPlayActivations && kind !== 'excited'; index += 1) kind = await activate('click');
           await expectResponse('excited');
-          await until(() => phase() === 'return', '接住后扔回小球');
-          expect(!prop().disabled, '扔回的小球被锁住，不能重抓');
+          const returning = await until(() => phaseEvidence.find(item => item.at >= lastActivationAt && item.phase === 'return') ?? (phase() === 'return' ? evidence() : null), '接住后扔回小球');
+          expect(returning.propDisabled === false, '扔回的小球被锁住，不能重抓');
           expect(phaseTrail.includes('flight') && phaseTrail.includes('contact'), '逗球没有经过真实飞行和接触');
         }],
         ['慢摇月亮后再Enter安抚至熟睡，可以明确叫醒', async () => {
@@ -339,12 +381,12 @@
           node.focus({ preventScroll: true });
           // 同一指针的move确认drag，随后up完成drag；两次touch不能把刚醒来的回应清空。
           pointer(node, 'pointerdown', id, start); await frames();
-          pointer(node, 'pointermove', id, end); await frames();
-          const during = { response: response(), propDisabled: prop()?.disabled };
+          pointer(node, 'pointermove', id, end);
+          const during = await until(() => response() === 'wake' ? evidence() : null, '本体拖动确认唤醒');
           log('body engage wake', { start, end, ...during });
-          pointer(node, 'pointerup', id, end); await frames();
+          pointer(node, 'pointerup', id, end); await wait(0);
           log('body release wake', { response: response(), propDisabled: prop()?.disabled, trail: responseTrail });
-          expect(during.response === 'wake', '本体拖动确认时未立即醒来');
+          expect(during.kind === 'wake', '本体拖动确认时未立即醒来');
           expect(during.propDisabled === true, '拖动唤醒期间道具未锁住');
           expect(response() === 'wake', '同一拖动松手清掉了新wake回应');
           expect(prop()?.disabled === true, '松手过早解锁了wake期间的道具');
@@ -363,11 +405,11 @@
         ['左右手都能先接住点心，再从手中递到嘴边', async () => {
           for (const side of ['left', 'right']) {
             await fresh('feed'); await dragTo('.mascot-static-hand.' + side);
-            expect(phase() === 'contact', side + '手递食没有先停在接触阶段');
-            expect(prop().disabled, side + '手接稳食物时未锁住输入');
-            const food = center(prop()); const hand = center(mount.querySelector('.mascot-static-hand.' + side));
-            log('hand delivery', { side, phase: phase(), food, hand });
-            expect(Math.hypot(food.x - hand.x, food.y - hand.y) <= prop().getBoundingClientRect().width, '食物没有由' + side + '手接住');
+            const contact = await until(() => phaseEvidence.find(item => item.phase === 'contact') ?? (phase() === 'contact' ? evidence() : null), side + '手接触证据');
+            expect(contact.propDisabled === true, side + '手接稳食物时未锁住输入');
+            const food = contact.propPoint; const hand = side === 'left' ? contact.leftHand : contact.rightHand;
+            log('hand delivery', { side, ...contact });
+            expect(food && hand && Math.hypot(food.x - hand.x, food.y - hand.y) <= contact.propWidth, '食物没有由' + side + '手接住');
             await expectResponse('eat');
             expect(phaseTrail.indexOf('contact') >= 0 && phaseTrail.indexOf('eating') > phaseTrail.indexOf('contact'), side + '手没有完成接住再进食的顺序');
           }
@@ -396,6 +438,7 @@
       async function runSuite() {
         if (running) return; running = true; runButton.disabled = true;
         status.dataset.status = 'running'; status.textContent = '运行中…'; diagnostics.textContent = ''; results.replaceChildren();
+        previousRafAt = null; Object.assign(rafStats, { count: 0, last: 0, min: Infinity, max: 0, warnings: 0 });
         const rows = cases.map(([label]) => { const row = document.createElement('li'); row.dataset.result = 'waiting'; row.textContent = '等待 · ' + label; results.append(row); return row; });
         let passed = 0;
         for (let index = 0; index < cases.length; index += 1) {
@@ -411,6 +454,7 @@
           }
         }
         status.dataset.status = passed === cases.length ? 'passed' : 'failed'; status.textContent = (passed === cases.length ? 'PASS' : 'FAIL') + ' · ' + passed + '/' + cases.length + ' 项通过';
+        log('RAF summary', rafStats);
         current.textContent = '运行完成；详细坐标与每次回应可在诊断中查看。'; running = false; runButton.disabled = false;
       }
       runButton.addEventListener('click', () => { void runSuite(); });
