@@ -6,9 +6,10 @@ export type PetResponseKind = 'eat' | 'full' | 'play' | 'excited' | 'tired' | 'd
 export interface PetResponse { id: number; kind: PetResponseKind; text: string; intensity: number; variant: number; durationMs: number }
 export interface PetMemory { satiety: number; excitement: number; calm: number; sleeping: boolean; lastAt: number; lastEventAt: number; lastKind: PetEventKind | null; sequence: number; streak: number }
 export interface PetPoint { x: number; y: number }
-export interface PetTargets { prop: { x: number; y: number; radius: number } | null; mouth: PetPoint; hand: PetPoint }
+export type PetPropPhase = 'ready' | 'held' | 'flight' | 'contact' | 'eating' | 'return' | 'responding' | 'sleeping';
+export interface PetTargets { phase?: PetPropPhase; leftHand?: PetPoint; rightHand?: PetPoint; prop: { x: number; y: number; radius: number } | null; mouth: PetPoint; hand: PetPoint }
 /** 输入坐标来自整个舞台，x向右、y向下且范围[-1,1]。 */
-export interface PetInput { type: 'start' | 'move' | 'release' | 'activate' | 'cancel'; point?: PetPoint }
+export interface PetInput { type: 'start' | 'move' | 'release' | 'activate' | 'cancel'; point?: PetPoint; velocity?: PetPoint }
 
 /** 可调节的互动节奏、记忆衰减与回应集中于此；时间全部使用单调毫秒。 */
 export const PET_CARE_SETTINGS = {
