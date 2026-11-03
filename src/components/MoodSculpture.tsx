@@ -19,7 +19,8 @@ interface Bubble { id: number; text: string; durationMs: number }
 /** 主工具只留四个短入口，其他小动作折叠；可调交互阈值统一来自内容配置。 */
 const MAIN_MODES: { mode: MascotMode; label: string }[] = [{ mode: 'auto', label: '随心' }, { mode: 'pinch', label: '捏脸' }, { mode: 'drag', label: '拽拽' }, { mode: 'pat', label: '摸摸' }];
 const CARE_ACTIVITIES = [{ kind: 'feed', label: '喂食', icon: Apple }, { kind: 'tease', label: '逗玩', icon: CircleDot }, { kind: 'sleep', label: '哄睡', icon: Moon }] as const;
-const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '轻触点心喂一口，也可拖到嘴边或按回车', tease: '轻触小球递球，也可拖动逗玩或按回车', sleep: '轻触月亮安抚，也可慢慢摇晃或按回车' };
+// 道具说明兼顾触屏、自由抛接和原生键盘操作。
+const PET_PROP_LABELS: Record<PetActivity, string> = { feed: '拖动点心甩出喂食，空中也可再抓；轻触或回车递一口', tease: '拖动小球甩出逗玩，可空中再抓；轻触或回车递球', sleep: '慢慢摇动月亮哄睡，轻触或回车也可安抚' };
 const baseExpression = (mood: MoodScore | null): MascotExpression => mood !== null && mood <= 3 ? 'soft' : 'happy';
 
 /** 团子只读情绪来共情；任何鼠标、触屏或键盘动作都不选择评分或写入日记。 */
@@ -140,7 +141,7 @@ export default function MoodSculpture({ mood = null, className = '' }: MoodSculp
     <div className="mascot-reply-space"><p className={`mascot-reply ${bubble ? 'is-visible' : ''}`} role="status" aria-live="polite" aria-atomic="true">{bubble?.text ?? ''}</p></div>
     <div className="mascot-visual-stage">
       <div ref={hostRef} className="mood-sculpture-canvas" aria-hidden="true" />
-      {!ready && <MascotFallback mood={mood} expression={careExpression} activity={care.activity} response={care.response} petInput={care.lastInput} onPetTargets={care.publishTargets} gaze={controls.gaze} interaction={controls.interaction} reaction={reaction} reduced={reduced} />}
+      {!ready && <MascotFallback mood={mood} expression={careExpression} activity={care.activity} response={care.response} petInput={care.lastInput} onPetTargets={care.publishTargets} onPetEvent={care.event} gaze={controls.gaze} interaction={controls.interaction} reaction={reaction} reduced={reduced} />}
       <button ref={buttonRef} className={`mascot-touch-target ${controls.interaction ? 'is-manipulating' : ''}`} type="button" aria-label="和小团子玩一下" aria-describedby={helpId} data-mode={mode} data-region={controls.region ?? 'none'} data-gesture={controls.interaction?.kind ?? 'idle'} {...controls.handlers} />
       {care.activity && <button ref={care.propRef} className="mascot-care-target" type="button" style={{ visibility: 'hidden' }} disabled={care.busy} aria-label={PET_PROP_LABELS[care.activity]} {...care.handlers}><span className="mascot-sr-only">{PET_PROP_LABELS[care.activity]}</span></button>}
       <span className="mascot-sr-only" id={helpId}>当前{MAIN_MODES.find(item => item.mode === mode)?.label ?? '挠痒'}模式。Enter或空格互动，选捏脸或拽拽后可按方向键，松键回弹，Escape放开。</span>
