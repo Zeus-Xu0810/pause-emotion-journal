@@ -12,6 +12,10 @@
   --mascot-breath-time: 4100ms;
   --mascot-blink-time: 7600ms;
   --mascot-idle-hand-time: 12300ms;
+  --mascot-care-row-height: 36px;
+  --mascot-care-tools-height: 76px;
+  --mascot-prop-return-time: 320ms;
+  --mascot-sleep-breath-time: 5800ms;
   --mascot-face-ink: #33473d;
   --mascot-blush: #dba79e;
   position: relative;
@@ -43,6 +47,21 @@
 
 /* 短工具条仅保留轻量选择；更多菜单浮在角色边缘，不推挤日记操作。 */
 .mascot-tools { grid-row: 3; position: relative; z-index: 7; display: flex; align-items: center; justify-content: center; gap: var(--mascot-tool-gap); min-width: 0; height: var(--mascot-tools-height); align-self: end; }
+/* 三种照料与直接触摸分组，桌面同排；只有含照料组时才启用手机双行槽位。 */
+.mascot-care-toolbar, .mascot-touch-tools { display: flex; align-items: center; justify-content: center; gap: var(--mascot-tool-gap); min-width: 0; height: var(--mascot-care-row-height); }
+.mascot-tools:has(.mascot-care-toolbar) { gap: 16px; }
+.mascot-care-toolbar { padding-right: 15px; border-right: 1px solid #dfe7df; }
+.mascot-care-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--mascot-care-row-height); padding: 6px 10px; border: 1px solid transparent; border-radius: 20px; background: transparent; color: #647b6b; font-size: var(--mascot-tool-text); line-height: 1.35; white-space: nowrap; }
+.mascot-care-button svg { width: 16px; height: 16px; }
+.mascot-care-button:hover { color: var(--ink, #233d35); background: #edf3ee; }
+.mascot-care-button[aria-pressed='true'] { color: var(--ink, #233d35); background: #eee9d8; border-color: #e3dcc5; }
+.mascot-care-button:focus-visible { outline: 2px solid var(--focus, #8aa88c); outline-offset: 2px; }
+/* 道具目标由父层贴合真实锚点；只接管这个按钮，空白舞台仍能正常纵向滚动。 */
+.mascot-care-target { position: absolute; z-index: 4; display: block; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; box-shadow: none; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; }
+.mood-sculpture .mascot-care-target:hover, .mood-sculpture .mascot-care-target:active:not(:disabled) { background: transparent; box-shadow: none; transform: none; }
+.mascot-care-target:active, .mascot-care-target.is-dragging { cursor: grabbing; }
+.mascot-care-target:focus-visible { outline: 2px dashed #8ba28c; outline-offset: 3px; }
+.mascot-care-target:disabled { pointer-events: none; }
 .mascot-toolbutton { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: var(--mascot-tool-hit); padding: 6px 10px; border: 1px solid transparent; border-radius: 20px; background: transparent; color: #7a8c80; font-size: var(--mascot-tool-text); line-height: 1.35; white-space: nowrap; }
 .mascot-toolbutton svg { width: 15px; height: 15px; }
 .mascot-toolbutton:hover { color: var(--ink, #233d35); background: #edf3ee; }
@@ -147,12 +166,56 @@
 @keyframes mascot-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 18% { transform: translateY(2%) scale(1.08, .91); } 43% { transform: translateY(-8%) scale(.96, 1.05); } 67% { transform: translateY(0) scale(1.045, .96); } 84% { transform: scale(.985, 1.015); } }
 
 /* 闲时只做不到百分之一的呼吸、小幅手动与短眨眼，不摇晃整座舞台或持续抢注意。 */
-.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-fallback-breath { transform-origin: 50% 95%; animation: mascot-soft-breath var(--mascot-breath-time) ease-in-out infinite; }
-.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-static-lid { transform-origin: 50% 50%; animation: mascot-natural-blink var(--mascot-blink-time) linear infinite; }
-.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-static-hand.right { animation: mascot-idle-hand var(--mascot-idle-hand-time) ease-in-out infinite; }
+.mascot-fallback[data-gesture='idle'][data-reaction='idle']:not([data-pet-response='asleep']) .mascot-fallback-breath { transform-origin: 50% 95%; animation: mascot-soft-breath var(--mascot-breath-time) ease-in-out infinite; }
+.mascot-fallback[data-gesture='idle'][data-reaction='idle']:not([data-pet-response='asleep']):not([data-pet-response='drowsy']) .mascot-static-lid { transform-origin: 50% 50%; animation: mascot-natural-blink var(--mascot-blink-time) linear infinite; }
+.mascot-fallback[data-gesture='idle'][data-reaction='idle'][data-pet-activity='none'] .mascot-static-hand.right { animation: mascot-idle-hand var(--mascot-idle-hand-time) ease-in-out infinite; }
 @keyframes mascot-soft-breath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.006, 1.009); } }
 @keyframes mascot-natural-blink { 0%, 42%, 46%, 81%, 85%, 100% { transform: scaleY(1); } 43.5%, 44% { transform: scaleY(.08); } 82.5%, 83% { transform: scaleY(.08); } }
 @keyframes mascot-idle-hand { 0%, 58%, 73%, 100% { transform: rotate(0deg); } 62% { transform: rotate(-9deg) translateY(-3%); } 66% { transform: rotate(-5deg) translateY(-2%); } 69% { transform: rotate(-10deg) translateY(-3%); } }
+
+/* 喂食、逗球与月亮共用一份SVG道具，位置由输入决定，透明目标读取此元素的真实包围框。 */
+.mascot-care-prop { position: absolute; z-index: 3; display: block; left: var(--pet-home-x); top: var(--pet-home-y); width: var(--pet-prop-size); height: var(--pet-prop-size); transform: translate(-50%, -50%) translate(var(--pet-offset-x, 0px), var(--pet-offset-y, 0px)); transition: transform var(--mascot-prop-return-time) var(--mascot-elastic); filter: drop-shadow(0 5px 5px #344d3917); }
+.mascot-care-prop svg { display: block; width: 100%; height: 100%; }
+.mascot-fallback[data-pet-held='true'] .mascot-care-prop { transition: none; }
+.mascot-fallback[data-pet-response='eat'] .mascot-care-prop.is-feed.is-transferring { animation: mascot-pet-bite-transfer var(--pet-response-time) ease-in-out both; }
+.mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-care-prop.is-tease.is-transferring { animation: mascot-pet-ball-return var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-activity='tease'] .mascot-static-eye { transition-duration: 90ms; }
+.mascot-fallback[data-pet-activity='tease'] .mascot-static-hand.right { transform: rotate(-25deg) translate(-12%, -10%); }
+.mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'], [data-pet-response='eat']) .mascot-hand-rig.right { z-index: 4; }
+.mascot-fallback[data-pet-response='eat'] .mascot-static-mouth { left: 45%; top: 54%; width: 10%; height: 8%; border: 0; border-radius: 45%; background: var(--mascot-face-ink); animation: mascot-pet-chew var(--pet-response-time) linear both; }
+.mascot-fallback[data-pet-response='eat'] .mascot-static-hand.right { animation: mascot-pet-belly-rub var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='full'] .mascot-static-face { animation: mascot-pet-full 680ms ease-in-out both; }
+.mascot-fallback[data-pet-response='full'] .mascot-static-mouth { left: 45%; top: 57%; width: 10%; height: 2%; border: 0; border-bottom: 2px solid var(--mascot-face-ink); border-radius: 50%; }
+.mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { animation: mascot-pet-reach var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='excited'] .mascot-fallback-suspension { animation: mascot-pet-wiggle 900ms ease-out both; }
+.mascot-fallback[data-pet-response='tired'] { --fb-eye-open: .45; }
+.mascot-fallback[data-pet-response='tired'] .mascot-static-hand.right { transform: rotate(13deg) translateY(15%); }
+.mascot-fallback[data-pet-response='drowsy'] { --fb-eye-open: .32; }
+.mascot-fallback[data-pet-response='drowsy'] .mascot-static-face { transform: translateY(2%) rotate(-4deg); }
+.mascot-fallback[data-pet-response='asleep'] { --fb-eye-open: .85; --fb-cheek-opacity: .24; }
+.mascot-fallback[data-pet-response='asleep'] .mascot-static-face { transform: translateY(2.5%) rotate(-5deg); }
+.mascot-fallback[data-pet-response='asleep'] .mascot-static-lid { top: 30%; height: 50%; border: 0; border-bottom: 2px solid var(--mascot-face-ink); border-radius: 0 0 50% 50%; animation: none; }
+.mascot-fallback[data-pet-response='asleep'] .mascot-static-pupil { opacity: 0; }
+.mascot-fallback[data-pet-response='asleep'] .mascot-static-mouth { left: 47%; top: 56%; width: 6%; height: 4%; border: 1.5px solid var(--mascot-face-ink); border-radius: 50%; background: transparent; }
+.mascot-fallback[data-pet-response='asleep'] .mascot-fallback-breath { transform-origin: 50% 95%; animation: mascot-pet-sleep-breath var(--mascot-sleep-breath-time) ease-in-out infinite; }
+.mascot-fallback[data-pet-response='wake'] .mascot-fallback-suspension { animation: mascot-pet-wake var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { animation: mascot-pet-stretch-left var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { animation: mascot-pet-stretch-right var(--pet-response-time) ease-in-out both; }
+.mascot-sleep-mark { position: absolute; left: calc(var(--fb-left) + var(--fb-width) * .83); top: calc(var(--fb-top) + var(--fb-height) * .04); color: #a8ab8d; font-size: 18px; line-height: 1; transform: rotate(8deg); animation: mascot-pet-sleep-mark 2600ms ease-in-out infinite; }
+.mascot-sleep-mark span { display: inline-block; margin-left: 4px; font-size: 12px; transform: translateY(-8px); }
+.mascot-fallback[data-pet-paused='true'] *, .mascot-fallback[data-pet-paused='true'] *::after { animation-play-state: paused !important; }
+@keyframes mascot-pet-bite-transfer { 0% { transform: translate(-50%, -50%) translate(var(--pet-from-x), var(--pet-from-y)) scale(1); opacity: 1; } 27% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) scale(.62); opacity: 1; } 39%, 63% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) scale(0); opacity: 0; } 64% { transform: translate(-50%, -50%) scale(.4); opacity: 0; } 86%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+@keyframes mascot-pet-chew { 0%, 24%, 100% { transform: scale(1, 1); } 33%, 49%, 65% { transform: scale(1.28, .48); } 41%, 57%, 74% { transform: scale(.85, 1.16); } }
+@keyframes mascot-pet-belly-rub { 0%, 100% { transform: rotate(0deg); } 28%, 48%, 68% { transform: translate(-220%, 22%) rotate(46deg); } 38%, 58%, 78% { transform: translate(-205%, 36%) rotate(36deg); } }
+@keyframes mascot-pet-full { 0%, 100% { transform: translateX(0) rotate(0deg); } 18%, 52% { transform: translateX(-3%) rotate(-5deg); } 35%, 69% { transform: translateX(3%) rotate(5deg); } 86% { transform: translateX(-1%) rotate(-1deg); } }
+@keyframes mascot-pet-reach { 0%, 100% { transform: rotate(-25deg) translate(-12%, -10%); } 25%, 43% { transform: translate(-65%, -38%) rotate(-54deg); } 64% { transform: translate(-28%, -20%) rotate(-34deg); } }
+@keyframes mascot-pet-ball-return { 0% { transform: translate(-50%, -50%) translate(var(--pet-from-x), var(--pet-from-y)); } 22% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) rotate(-40deg); } 52% { transform: translate(-50%, -50%) translate(10px, -26px) rotate(38deg); } 77% { transform: translate(-50%, -50%) translate(0, 6px) rotate(-12deg); } 100% { transform: translate(-50%, -50%); } }
+@keyframes mascot-pet-wiggle { 0%, 100% { transform: rotate(0deg); } 22% { transform: rotate(-3deg) translateY(-1%); } 47% { transform: rotate(3deg); } 72% { transform: rotate(-1.5deg); } }
+@keyframes mascot-pet-sleep-breath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.008, 1.015); } }
+@keyframes mascot-pet-sleep-mark { 0%, 100% { opacity: .3; transform: translateY(0) rotate(8deg); } 55% { opacity: .8; transform: translateY(-5px) rotate(8deg); } }
+@keyframes mascot-pet-wake { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-2.5%); } 68% { transform: translateY(.7%); } }
+@keyframes mascot-pet-stretch-left { 0%, 100% { transform: rotate(0deg); } 35%, 56% { transform: rotate(65deg) translateY(-22%); } 76% { transform: rotate(-7deg); } }
+@keyframes mascot-pet-stretch-right { 0%, 100% { transform: rotate(0deg); } 35%, 56% { transform: rotate(-65deg) translateY(-22%); } 76% { transform: rotate(7deg); } }
 
 /* 手机工具保持40px命中高，但只占36px布局槽，原首屏保存位置不变。 */
 @media (max-width: 640px) {
@@ -160,6 +223,10 @@
   .mascot-reply { padding: 9px 16px; max-width: 100%; font-size: 16px; border-radius: 16px; }
   .mascot-toolbutton { padding-inline: 8px; }
   .mascot-tools-menu { min-width: 140px; }
+  .mood-sculpture:has(.mascot-care-toolbar) { --mascot-tools-height: var(--mascot-care-tools-height); --mascot-care-row-height: 38px; }
+  .mascot-tools:has(.mascot-care-toolbar) { flex-direction: column; gap: 0; }
+  .mascot-care-toolbar { padding-right: 0; border-right: 0; }
+  .mascot-care-button { padding-inline: 11px; }
 }
 @media (min-width: 2100px) { .mascot-reply { font-size: 22px; padding: 13px 24px; } }
 
@@ -167,9 +234,17 @@
 .mascot-fallback.is-reduced *, .mascot-fallback.is-reduced *::after { animation: none !important; transition: none !important; }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
+.mascot-fallback.is-reduced[data-pet-response='eat'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
+.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+.mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
+.mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
 @media (prefers-reduced-motion: reduce) {
   .mood-sculpture-canvas canvas, .mascot-reply, .mascot-fallback *, .mascot-fallback *::after { animation: none !important; transition: none !important; }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
+  .mascot-fallback[data-pet-response='eat'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
+  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+  .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
+  .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
   .mascot-reply { transform: none; }
 }
