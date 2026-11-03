@@ -3,6 +3,7 @@ export const PET_PERFORMANCE = {
   meal: { carryEnd: 0.2, firstBite: [0.22, 0.32], secondBite: [0.49, 0.59], lastBite: [0.72, 0.81], swallow: [0.82, 0.87, 0.93] },
   moon: { minimumSeconds: 0.22, slowMaximumSpeed: 1.15, fastMaximumSpeed: 2.4 },
   pursuit: { gain: 0.8, bodyHalfWidth: 1.18, minimumTravel: 0.15 },
+  pickup: { bend: 0.1, inspectSeconds: 1.4 },
   catchBlendPhase: 0.15,
 };
 const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
