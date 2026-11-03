@@ -650,7 +650,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
 
     function animate(now: number) {
       frame = 0; if (!canAnimate()) return;
-      const delta = lastFrame ? Math.min((now - lastFrame) / 1000, 0.04) : 1 / 60;
+      const visibleElapsed = lastFrame ? Math.max(0, (now - lastFrame) / 1000) : 1 / 60;
+      const delta = Math.min(visibleElapsed, 0.04);
       lastFrame = now; time += delta;
       const settle = 1 - Math.exp(-SETTINGS.settlingSpeed * delta);
       const object = petObject(); const tracking = object?.visible && !held && !petResting && petActivity !== 'sleep';
@@ -667,7 +668,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         reaction.elapsed += delta * 1000;
         if (reaction.elapsed >= reaction.duration) { reaction = null; if (!held) setExpression(active?.reply.expression ?? baseExpression(currentMood)); }
       }
-      updateLife(delta); stepSpring(delta); advancePet(delta);
+      // 弹簧仍小步积分；照顾回应按实际可见时间推进，与按钮解锁时刻保持一致。
+      updateLife(delta); stepSpring(delta); advancePet(visibleElapsed);
       pose(active ? active.elapsed / active.reply.durationMs : idle ? idle.elapsed / idle.duration : 0, active?.reply.action ?? idle?.action ?? null);
       applyPhysicalPose(); updatePetProps(delta); updateEyes(delta); updateFeeling(delta);
       // 快速变形时放宽镜头，保留一整颗团子与小手小脚。
