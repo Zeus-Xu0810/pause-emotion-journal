@@ -56,6 +56,8 @@
         quietMs: CARE.cooldownMs + 150,
         gentleHoldMs: 420,
         gentleOffsetPx: 40,
+        bodyGrip: { x: 0.5, y: 0.72 },
+        bodyDragPx: 28,
         boundsTolerancePx: 2,
         maximumPlayActivations: 5,
         maximumSootheActivations: 5,
@@ -296,6 +298,27 @@
             assertBounds(mount.querySelector('.mascot-static-mouth'), '嘴锚点', true);
             assertBounds(mount.querySelector('.mascot-static-hand.right'), '右手锚点', true);
           }
+        }],
+        ['熟睡后本体拖动唤醒，同一手势松开不清掉wake或提前解锁道具', async () => {
+          await fresh('sleep'); await fallAsleep(); responseTrail = [];
+          const body = mount.querySelector('.mascot-static-body').getBoundingClientRect();
+          const node = mount.querySelector('.mascot-touch-target'); const id = ++pointerSequence;
+          const start = { x: body.left + body.width * TEST.bodyGrip.x, y: body.top + body.height * TEST.bodyGrip.y };
+          const end = { x: start.x + TEST.bodyDragPx, y: start.y };
+          node.focus({ preventScroll: true });
+          // 同一指针的move确认drag，随后up完成drag；两次touch不能把刚醒来的回应清空。
+          pointer(node, 'pointerdown', id, start); await frames();
+          pointer(node, 'pointermove', id, end); await frames();
+          const during = { response: response(), propDisabled: prop()?.disabled };
+          log('body engage wake', { start, end, ...during });
+          pointer(node, 'pointerup', id, end); await frames();
+          log('body release wake', { response: response(), propDisabled: prop()?.disabled, trail: responseTrail });
+          expect(during.response === 'wake', '本体拖动确认时未立即醒来');
+          expect(during.propDisabled === true, '拖动唤醒期间道具未锁住');
+          expect(response() === 'wake', '同一拖动松手清掉了新wake回应');
+          expect(prop()?.disabled === true, '松手过早解锁了wake期间的道具');
+          expect(!responseTrail.includes('idle'), '唤醒到松手之间出现瞬间清空');
+          await unlocked(); expect(response() === 'idle', 'wake结束后回应未归位');
         }],
       ];
 
