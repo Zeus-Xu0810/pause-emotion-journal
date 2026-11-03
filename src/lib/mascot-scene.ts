@@ -14,7 +14,7 @@ import type { PetActivity, PetEventKind, PetInput, PetPoint, PetResponse } from 
 import { advancePetFlight, createPetFlight, isPetFlick, isPetFlightResting, sweptPetCatch } from './pet-flight';
 import type { PetFlight } from './pet-flight';
 import { PET_PERFORMANCE, petCatchBlend, petPursuitTarget, samplePetMeal, samplePetSleep } from './pet-performance';
-import { MASCOT_LIMB_SETTINGS, solveMascotLimb } from './mascot-limbs';
+import { solveMascotLimb } from './mascot-limbs';
 import { PET_BALL_PLAY_SETTINGS, samplePetBallPlay } from './pet-ball-play';
 
 /** 直接操纵的可修改输入集中在此；形变上限保持曲面连续，避免捏拉翻面。 */
@@ -64,10 +64,9 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     const mouthGeometries = new Map<MascotExpression, THREE.TubeGeometry>();
     const mouthRest = new Map<THREE.BufferGeometry, Float32Array>();
     const eyes: THREE.Group[] = []; const arms: THREE.Group[] = []; const feet: THREE.Mesh[] = [];
-    // 肩根、实体短软臂和手掌分别维护；接球锚点直接读取可见手掌。
-    const palms: THREE.Mesh[] = []; const armLinks: THREE.Mesh[] = [];
-    const limbShoulder = new THREE.Vector3(); const limbPalm = new THREE.Vector3(); const limbWrist = new THREE.Vector3(); const limbOffset = new THREE.Vector3(); const limbDirection = new THREE.Vector3();
-    const axisY = new THREE.Vector3(0, 1, 0);
+    // 每侧只绘制一只圆润手掌；肩锚仍参与限位，接球直接读取可见手掌。
+    const palms: THREE.Mesh[] = [];
+    const limbPalm = new THREE.Vector3(); const limbOffset = new THREE.Vector3();
     const pupils: THREE.Mesh[] = []; const highlights: THREE.Mesh[] = [];
     const brows: THREE.Group[] = [];
     let laughMouth: THREE.Group;
@@ -206,15 +205,11 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       arms.forEach((part, index) => {
         const palm = palms[index]; if (!palm) return;
         const side = index === 0 ? -1 : 1;
-        // 先求真实掌心，再限制骨长；肩、腕、掌同用一次局部形变，不能只挪一个悬空Group。
+        // 先求真实掌心并限制肩距，再统一形变；不额外绘制凸出的白色连接块。
         limbOffset.copy(palm.position).applyEuler(part.rotation); scratch.copy(part.position).add(limbOffset);
         const solved = solveMascotLimb(side, scratch, SETTINGS.body);
-        deformPoint(scratch.set(solved.shoulder.x, solved.shoulder.y, solved.shoulder.z), limbShoulder);
         deformPoint(scratch.set(solved.palm.x, solved.palm.y, solved.palm.z), limbPalm);
-        deformPoint(scratch.set(solved.wrist.x, solved.wrist.y, solved.wrist.z), limbWrist);
         part.position.copy(limbPalm).sub(limbOffset);
-        const link = armLinks[index];
-        if (link) { limbDirection.subVectors(limbWrist, limbShoulder); const length = limbDirection.length(); const radius = MASCOT_LIMB_SETTINGS.armRadius; link.position.copy(limbShoulder).add(limbWrist).multiplyScalar(0.5); link.scale.set(radius, length * 0.5 + radius * 0.65, radius); if (length > 0.000001) link.quaternion.setFromUnitVectors(axisY, limbDirection.divideScalar(length)); }
       });
       for (const part of feet) { deformPoint(part.position, mapped); part.position.copy(mapped); }
       previousDeformed = deformed;
@@ -931,12 +926,10 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const body = new THREE.Mesh(geometry, bodyMaterial); body.castShadow = true; body.receiveShadow = true; rig.add(body);
       hitTargets.push(body);
       const limbGeometry = new THREE.SphereGeometry(1, 20, 16);
-      // 圆润的软臂用两端渐细的椭球，避免圆柱平端在肩根露出机械接头。
-      const armGeometry = new THREE.SphereGeometry(1, 20, 14);
+      // 每侧只创建手掌和小脚，避免连接器形成第二块白色凸起。
       for (const side of [-1, 1]) {
         const pivot = new THREE.Group(); pivot.position.set(side * 0.86, 0.03, 0.02);
         const hand = new THREE.Mesh(limbGeometry, bodyMaterial); hand.position.set(side * 0.13, -0.17, 0.12); hand.scale.set(0.14, 0.22, 0.15); hand.castShadow = true; hand.userData.region = side < 0 ? 'hand-left' : 'hand-right'; hitTargets.push(hand); pivot.add(hand); rig.add(pivot); arms.push(pivot); palms.push(hand);
-        const link = new THREE.Mesh(armGeometry, bodyMaterial); link.castShadow = true; link.receiveShadow = true; rig.add(link); armLinks.push(link);
         const foot = new THREE.Mesh(limbGeometry, bodyMaterial); foot.position.set(side * 0.33, -0.89, 0.35); foot.scale.set(0.19, 0.12, 0.26); foot.castShadow = true; foot.userData.region = 'body'; hitTargets.push(foot); rig.add(foot); feet.push(foot);
       }
 

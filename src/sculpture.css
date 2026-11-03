@@ -16,8 +16,6 @@
   --mascot-care-tools-height: 76px;
   --mascot-sleep-breath-time: 5800ms;
   --mascot-sleepy-blink-time: 4300ms;
-  --mascot-soft-arm-width: 92%;
-  --mascot-soft-arm-thickness: 52%;
   --mascot-ball-cup-x: 17%;
   --mascot-ball-cup-y: -15%;
   --mascot-ball-cup-angle: 32deg;
@@ -101,9 +99,7 @@
 .mascot-static-hand, .mascot-static-foot { position: absolute; inset: 0; display: block; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; border-radius: 50%; box-shadow: inset 3px 3px 7px #ffffff45; transform: rotate(0deg); transition: transform var(--mascot-limb-return) var(--mascot-elastic); }
 .mascot-static-hand { transform-origin: 50% 22%; }
 /* 短软臂与掌心共享变换，只跨过身体边缘的小间隙，不把手移动成长胳膊。 */
-.mascot-static-hand::before { content: ''; position: absolute; z-index: -1; top: 25%; width: var(--mascot-soft-arm-width); height: var(--mascot-soft-arm-thickness); border-radius: 50%; background: var(--sculpture-color, #f3eee0); box-shadow: inset 0 2px 4px #fff4; }
-.mascot-static-hand.left::before { left: 42%; }
-.mascot-static-hand.right::before { right: 42%; }
+/* 后备视图同样只保留手掌，不生成两侧多余的白色连接块。 */
 .mascot-static-foot { transform-origin: 50% 10%; box-shadow: inset 2px 2px 5px #ffffff45, 0 2px 3px #687e6b08; }
 .mascot-fallback[data-gesture='drag'] .mascot-static-hand.left { transform: rotate(20deg) translateY(13%); }
 .mascot-fallback[data-gesture='drag'] .mascot-static-hand.right { transform: rotate(-20deg) translateY(13%); }
