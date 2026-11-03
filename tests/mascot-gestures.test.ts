@@ -196,3 +196,11 @@ test('全部手势有短回复和表情，模式提示及后备命中完整', ()
   assert.equal(defaultHitForGesture('tickle').region, 'belly');
   assert.equal(defaultHitForGesture('wave').region, 'hand-right');
 });
+
+test('即时按压与正式识别分开设置，增强鼠标反馈不降低拖动防抖门槛', () => {
+  assert.ok(SETTINGS.mousePressStrength > SETTINGS.touchPressStrength);
+  assert.ok(SETTINGS.touchPressStrength > 0 && SETTINGS.mousePressStrength <= 1);
+  assert.ok(SETTINGS.dragStartDistance > SETTINGS.tapMaximumTravel);
+  assert.ok(SETTINGS.headStrokeStartDistance > SETTINGS.tapMaximumTravel);
+  assert.ok(SETTINGS.reversalMinimumDistance > SETTINGS.dragStartDistance);
+});

@@ -13,6 +13,8 @@ interface InteractionOptions {
   host: RefObject<HTMLDivElement | null>;
   button: RefObject<HTMLButtonElement | null>;
   onReact: (kind: MascotGesture, hit: MascotHit) => void;
+  /** 持续手势首次确认或类型切换时通知表情文案；调用方不能在此播放release动画。 */
+  onEngage?: (kind: MascotGesture, hit: MascotHit) => void;
 }
 interface HeldPointer { point: MascotPoint; hit: MascotHit }
 const clamp = (value: number, limit: number) => Math.max(-limit, Math.min(limit, value));
@@ -31,6 +33,7 @@ export function useMascotInteraction(options: InteractionOptions) {
   const tapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const keyHeld = useRef<MascotManipulation | null>(null);
+  const engagedKind = useRef<MascotGesture | null>(null);
   const gazeFrame = useRef(0);
   const pointerPosition = useRef<MascotPoint>({ x: 0, y: 0 });
   const [gaze, setGaze] = useState<MascotPoint>({ x: 0, y: 0 });
@@ -42,7 +45,15 @@ export function useMascotInteraction(options: InteractionOptions) {
     tapTimer.current = null; pendingTap.current = null; pendingHit.current = null;
   }, []);
   const clearHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
-  const apply = useCallback((value: MascotManipulation | null) => { latest.current.scene.current?.manipulate(value); setInteraction(value); }, []);
+  const apply = useCallback((value: MascotManipulation | null) => {
+    if (!value) engagedKind.current = null;
+    latest.current.scene.current?.manipulate(value); setInteraction(value);
+  }, []);
+  // 移动可逐帧更新形变，表情文案只在确认和切换时通知一次，不反复打断正在抓住的身体。
+  const engage = useCallback((kind: MascotGesture, hit: MascotHit) => {
+    if (engagedKind.current === kind) return;
+    engagedKind.current = kind; latest.current.onEngage?.(kind, hit);
+  }, []);
   const reset = useCallback(() => {
     clearTap(); clearHold();
     const ids = [...held.current.keys()];
@@ -67,7 +78,8 @@ export function useMascotInteraction(options: InteractionOptions) {
     const host = latest.current.host.current;
     const limit = SETTINGS.maxPointerDelta;
     apply({ kind: state.kind, hit: anchor.current, dx: clamp(state.dx / Math.max(1, host?.clientWidth ?? 1) * 2, limit), dy: clamp(state.dy / Math.max(1, host?.clientHeight ?? 1) * 2, limit), strength: state.strength, pinchScale: state.pinchScale });
-  }, [apply, clearTap]);
+    engage(state.kind, anchor.current);
+  }, [apply, clearTap, engage]);
 
   // 鼠标在页面其他位置移动时眼睛也会看过去；后备视图刷新节流到每帧一次。
   useEffect(() => {
@@ -78,7 +90,7 @@ export function useMascotInteraction(options: InteractionOptions) {
       gazeFrame.current = requestAnimationFrame(() => {
         gazeFrame.current = 0;
         const point = stagePoint(pointerPosition.current);
-        const next = { x: clamp(point.x, 1.4), y: clamp(point.y, 1.4) };
+        const next = { x: clamp(point.x, SETTINGS.gazeLimit), y: clamp(point.y, SETTINGS.gazeLimit) };
         latest.current.scene.current?.look(next.x, next.y);
         if (!latest.current.ready) setGaze(next);
         setRegion(hitAt(pointerPosition.current)?.region ?? null);
@@ -113,7 +125,7 @@ export function useMascotInteraction(options: InteractionOptions) {
     held.current.set(event.pointerId, { point, hit });
     // 两指缩放只在已选捏脸模式并且确实命中两块脸颊时启用。
     if (held.current.size > 1) {
-      clearHold(); clearTap();
+      clearHold(); clearTap(); apply(null);
       const fingers = [...held.current.values()];
       if (fingers.length !== 2) { blocked.current = true; gesture.current = null; pinch.current = null; apply(null); return; }
       const next = startPinch({ mode: latest.current.mode, regions: [fingers[0].hit.region, fingers[1].hit.region], points: [fingers[0].point, fingers[1].point], at: performance.now() });
@@ -127,8 +139,8 @@ export function useMascotInteraction(options: InteractionOptions) {
     event.currentTarget.setPointerCapture(event.pointerId);
     // 鼠标沿用原生聚焦以保留正确的focus-visible判断；触屏显式模式才拦截默认动作。
     if (event.pointerType === 'touch' && latest.current.mode !== 'auto') event.preventDefault();
-    // 按下的轻凹提供即时触感，真正的动作与短句仍等待手势确认。
-    apply({ kind: 'poke', hit, dx: 0, dy: 0, strength: 0.12 });
+    // 鼠标落下立刻能看见按压，触屏更轻；预览不算确认手势，不触发表情短句。
+    apply({ kind: 'poke', hit, dx: 0, dy: 0, strength: event.pointerType === 'touch' ? SETTINGS.touchPressStrength : SETTINGS.mousePressStrength });
     clearHold();
     holdTimer.current = setTimeout(() => { if (gesture.current) { gesture.current = tickGesture(gesture.current, performance.now()); applyState(gesture.current); } }, SETTINGS.longPressMs);
   }
@@ -153,7 +165,7 @@ export function useMascotInteraction(options: InteractionOptions) {
       pendingTap.current = flushed.pending;
       if (flushed.kind && remembered) latest.current.onReact(flushed.kind, remembered);
       if (!flushed.pending) pendingHit.current = null;
-    }, SETTINGS.doubleTapMaximumMs + 5);
+    }, SETTINGS.doubleTapMaximumMs + SETTINGS.tapFlushPaddingMs);
   }
   function pointerUp(event: PointerEvent<HTMLButtonElement>) {
     downIds.current.delete(event.pointerId);
@@ -193,13 +205,13 @@ export function useMascotInteraction(options: InteractionOptions) {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) || latest.current.mode === 'auto') return;
     event.preventDefault(); clearTap();
     const kind = keyboardGesture(latest.current.mode); if (!kind) return;
-    const previous = keyHeld.current ?? { kind, hit: defaultHitForGesture(kind), dx: 0, dy: 0, strength: 0.35 };
+    const previous = keyHeld.current ?? { kind, hit: defaultHitForGesture(kind), dx: 0, dy: 0, strength: SETTINGS.keyboardStrength };
     const step = SETTINGS.keyboardStep;
     const next = { ...previous, dx: clamp(previous.dx + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0), SETTINGS.maxPointerDelta), dy: clamp(previous.dy + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0), SETTINGS.maxPointerDelta) };
-    keyHeld.current = next; apply(next);
+    keyHeld.current = next; apply(next); engage(next.kind, next.hit);
   }
   function keyUp(event: KeyboardEvent<HTMLButtonElement>) { if (event.key.startsWith('Arrow') && keyHeld.current) { const done = keyHeld.current; keyHeld.current = null; apply(null); latest.current.onReact(done.kind, done.hit); } }
-  // 按方向键时Tab离开也立即归位，不能等一个不会再送达此按钮的keyup。
-  function blur() { if (keyHeld.current) { keyHeld.current = null; apply(null); } }
+  // Tab或外部点击移走焦点即取消当前抓取，不能等待不会再送达此按钮的keyup/up。
+  function blur() { if (keyHeld.current || held.current.size > 0) reset(); }
   return { gaze, region, interaction, reset, handlers: { onPointerDown: pointerDown, onPointerMove: pointerMove, onPointerUp: pointerUp, onPointerCancel: pointerCancel, onLostPointerCapture: (event: PointerEvent<HTMLButtonElement>) => { if (held.current.has(event.pointerId)) pointerCancel(event); }, onClick: click, onKeyDown: keyDown, onKeyUp: keyUp, onBlur: blur, onContextMenu: (event: MouseEvent<HTMLButtonElement>) => event.preventDefault(), onDoubleClick: (event: MouseEvent<HTMLButtonElement>) => event.preventDefault() } };
 }
