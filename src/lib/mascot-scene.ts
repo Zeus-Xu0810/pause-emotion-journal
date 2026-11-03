@@ -213,7 +213,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         deformPoint(scratch.set(solved.wrist.x, solved.wrist.y, solved.wrist.z), limbWrist);
         part.position.copy(limbPalm).sub(limbOffset);
         const link = armLinks[index];
-        if (link) { limbDirection.subVectors(limbWrist, limbShoulder); const length = limbDirection.length(); link.position.copy(limbShoulder).add(limbWrist).multiplyScalar(0.5); link.scale.y = Math.max(0.001, length); if (length > 0.000001) link.quaternion.setFromUnitVectors(axisY, limbDirection.divideScalar(length)); }
+        if (link) { limbDirection.subVectors(limbWrist, limbShoulder); const length = limbDirection.length(); const radius = MASCOT_LIMB_SETTINGS.armRadius; link.position.copy(limbShoulder).add(limbWrist).multiplyScalar(0.5); link.scale.set(radius, length * 0.5 + radius * 0.65, radius); if (length > 0.000001) link.quaternion.setFromUnitVectors(axisY, limbDirection.divideScalar(length)); }
       });
       for (const part of feet) { deformPoint(part.position, mapped); part.position.copy(mapped); }
       previousDeformed = deformed;
@@ -922,7 +922,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const body = new THREE.Mesh(geometry, bodyMaterial); body.castShadow = true; body.receiveShadow = true; rig.add(body);
       hitTargets.push(body);
       const limbGeometry = new THREE.SphereGeometry(1, 20, 16);
-      const armGeometry = new THREE.CylinderGeometry(MASCOT_LIMB_SETTINGS.armRadius, MASCOT_LIMB_SETTINGS.armRadius * 1.12, 1, 16);
+      // 圆润的软臂用两端渐细的椭球，避免圆柱平端在肩根露出机械接头。
+      const armGeometry = new THREE.SphereGeometry(1, 20, 14);
       for (const side of [-1, 1]) {
         const pivot = new THREE.Group(); pivot.position.set(side * 0.86, 0.03, 0.02);
         const hand = new THREE.Mesh(limbGeometry, bodyMaterial); hand.position.set(side * 0.13, -0.17, 0.12); hand.scale.set(0.14, 0.22, 0.15); hand.castShadow = true; hand.userData.region = side < 0 ? 'hand-left' : 'hand-right'; hitTargets.push(hand); pivot.add(hand); rig.add(pivot); arms.push(pivot); palms.push(hand);
