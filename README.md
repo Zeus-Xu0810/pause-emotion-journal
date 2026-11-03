@@ -96,3 +96,6 @@ Firebase Auth 与 Firestore 规则通过 `npx -y firebase-tools@latest deploy --
 - 球可从接住的一侧抛回，返回途中仍可抓住；无人操作的回球不增加兴奋或刷照料事件。轻摇月亮、快速晃动有不同反应，安抚、哈欠、打盹、熟睡、揉眼与伸展分拍衔接。
 - 飞行手感位于`src/lib/pet-flight.ts`，三维造型与接取配置位于`src/lib/pet-props.ts`，进食/睡眠节奏位于`src/lib/pet-performance.ts`；后备的尺寸和反馈参数集中在`MascotFallback.tsx`与`sculpture.css`顶部。所有玩法状态仍只保留在当前页面。
 - 设计参考：[Desktop Mate官方触碰说明](https://www.infiniteloop.co.jp/desktopmate/widgets/help/index_en.html)、[Outfit7照料与角色反应](https://outfit7.com/blog/news/celebrating-the-holidays-with-talking-tom-friends)。参考其多部位反馈和连续照料思路，角色、道具、投掷和表演代码独立实现。
+- 本批最终验证：95项单元测试、生产构建、12项真实组件后备浏览器回归均通过；真实WebGL另检查点心甩出接食、小球飞行重抓、接稳与抛还、安抚/叫醒及低动态姿态。602×689、390×844、1920×1080（浏览器取整为1921×1081）和2560×1440检查保存按钮可见且无横向溢出。
+- 后备一键递送持续跟随真实手掌，不受上一次动作影响而投空；自由甩出继续使用物理轨迹。接物首帧保留手与重心姿态再平滑过渡，追随距离与自动取景解耦，避免窄屏追得越远角色越小。
+- 运行`/tests/pet-care-interactions.html`时需将浏览器标签激活到前台，页面展示实际RAF间隔；后台约1Hz会影响物理步进速度，不能据此判断正常动画节奏。实体手机触感与多指仍需设备实测。
