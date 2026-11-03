@@ -2,9 +2,18 @@
 export const PET_PERFORMANCE = {
   meal: { carryEnd: 0.2, firstBite: [0.22, 0.32], secondBite: [0.49, 0.59], lastBite: [0.72, 0.81], swallow: [0.82, 0.87, 0.93] },
   moon: { minimumSeconds: 0.22, slowMaximumSpeed: 1.15, fastMaximumSpeed: 2.4 },
+  pursuit: { gain: 0.8, bodyHalfWidth: 1.18, minimumTravel: 0.15 },
+  catchBlendPhase: 0.15,
 };
 const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 const smooth = (value: number, start: number, end: number) => { const t = clamp01((value - start) / (end - start)); return t * t * (3 - 2 * t); };
+
+/** 追随只看固定镜框宽度，不能反过来放大被自动取景缩小后的世界范围。 */
+export function petPursuitTarget(pointX: number, halfWidth: number): number {
+  const extent = Math.max(PET_PERFORMANCE.pursuit.minimumTravel, halfWidth - PET_PERFORMANCE.pursuit.bodyHalfWidth);
+  return Math.max(-extent, Math.min(extent, pointX * halfWidth * PET_PERFORMANCE.pursuit.gain));
+}
+export function petCatchBlend(progress: number): number { return smooth(progress, 0, PET_PERFORMANCE.catchBlendPhase); }
 
 /** 不对称拍点使抬头、咬下、吞咽和满足错开，避免所有部件共用正弦。 */
 export function petBeat(progress: number, start: number, peak: number, end: number): number {
