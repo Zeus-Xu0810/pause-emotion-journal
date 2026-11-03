@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>日记体验 DOM 回归</title>
+    <style>
+      /* 夹具布局只作用于本页；生产构建不会把tests目录作为页面入口。 */
+      body.journal-fixture { margin: 0; padding: 22px 18px 60px; font-family: 'Pause Round', sans-serif; color: #294737; background: #f7f8f2; }
+      .journal-fixture main { max-width: 930px; margin: auto; }
+      .journal-fixture h1 { font-size: 25px; line-height: 1.5; }
+      .journal-fixture .fixture-copy { font-size: 15px; line-height: 1.8; }
+      .journal-fixture .fixture-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-block: 12px; }
+      .journal-fixture .fixture-controls button, .journal-fixture .fixture-controls select { min-height: 43px; padding: 8px 15px; border: 1px solid #adbdab; border-radius: 14px; background: #fdfdf7; font: inherit; color: inherit; }
+      .journal-fixture .fixture-controls label { display: inline-flex; align-items: center; gap: 8px; }
+      #journal-test-status[data-status='passed'], #journal-test-results [data-result='pass'] { color: #28634b; }
+      #journal-test-status[data-status='failed'], #journal-test-results [data-result='fail'] { color: #b14335; }
+      #journal-test-results { font-size: 15px; line-height: 1.9; padding-left: 26px; }
+      #journal-test-current { min-height: 1.7em; font-size: 16px; }
+      #journal-test-mount { margin-top: 20px; padding: 18px; border: 1px solid #e0e7d9; border-radius: 15px; }
+      .journal-fixture .home-page { height: auto; min-height: 0; padding-bottom: 20px; }
+      .journal-fixture .home-stage { height: 270px; flex: 0 0 270px; }
+      .journal-fixture .fixture-journal { margin-top: 30px; padding-top: 20px; border-top: 1px solid #dce3d6; }
+      .journal-fixture .fixture-proof { display: block; margin-top: 15px; padding: 10px; background: #edf1e7; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.6 ui-monospace, monospace; }
+      .journal-fixture .fixture-note { font-size: 13px; line-height: 1.8; color: #6a7c6b; }
+      @media (max-width: 600px) { #journal-test-mount { padding: 10px; } .journal-fixture .fixture-controls label { flex-wrap: wrap; } }
+    </style>
+  </head>
+  <body class="journal-fixture">
+    <main>
+      <h1>日记体验 DOM 回归</h1>
+      <p class="fixture-copy">真实 HomeComposer 与 JournalView，使用本页受控草稿和模拟保存。九项操作仅通过公开 DOM 完成，不连接 Firebase、不读写账号。</p>
+      <div class="fixture-controls"><button id="run-journal-tests" type="button">运行日记回归</button><output id="journal-test-status" data-status="idle" aria-live="polite">尚未运行</output></div>
+      <p id="journal-test-current" role="status">每项重建组件，保存结果可在下方公开诊断中查看。</p>
+      <ol id="journal-test-results" aria-live="polite"></ol>
+      <div id="journal-test-mount"></div>
+      <p class="fixture-note">本页将 WebGL 降级为真实 CSS 后备，只检查日记交互。合成 input 使用原生 value setter 后派发 input/change；保存模拟会延时并显式返回 true 或 false，不冒充云端验证。</p>
+    </main>
+    <script type="module">
+      import React, { useState } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { MemoryRouter } from 'react-router-dom';
+      import HomeComposer from '../src/components/HomeComposer.tsx';
+      import JournalView from '../src/views/JournalView.tsx';
+      import { localInput, dayKey } from '../src/lib/domain.ts';
+      import { JOURNAL_SETTINGS } from '../src/journal-content.ts';
+      import '../src/styles.css';
+
+      /** 时间、合成输入和种子内容集中设置；种子仅属于测试页，从不进入生产数据。 */
+      const TEST = { pollMs: 25, timeoutMs: 5000, saveDelayMs: 90, settleMs: 65, note: '今天把一件小事做完了。', editedNote: '重新写下这一个片刻。' };
+      const now = new Date();
+      const oldTime = new Date(now.getFullYear(), now.getMonth(), 1, 9, 15).toISOString();
+      const otherTime = new Date(now.getFullYear(), now.getMonth(), Math.min(2, now.getDate()), 18, 30).toISOString();
+      const SEEDS = [
+        { id: 'fixture-old', mood: 2, feelings: ['疲惫'], contexts: ['工作'], note: '旧记录里的真实小事。', occurredAt: oldTime, createdAt: oldTime, updatedAt: oldTime, revision: 1 },
+        { id: 'fixture-other', mood: 5, feelings: ['满足'], contexts: ['日常小事'], note: '吃到喜欢的饭。', occurredAt: otherTime, createdAt: otherTime, updatedAt: otherTime, revision: 1 },
+      ];
+      const blankForm = () => ({ mood: null, feelings: [], contexts: [], note: '', occurredAt: localInput() });
+      const h = React.createElement;
+      const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (kind, ...args) { return ['webgl', 'webgl2', 'experimental-webgl'].includes(kind) ? null : nativeGetContext.call(this, kind, ...args); };
+
+      /** 真实组件的外部契约由本页实现；不引入认证Provider、Firestore或任何云保存SDK。 */
+      function Harness({ id }) {
+        const [form, setForm] = useState(blankForm);
+        const [editing, setEditing] = useState(null);
+        const [entries, setEntries] = useState(() => structuredClone(SEEDS));
+        const [mode, setMode] = useState('success');
+        const [busy, setBusy] = useState(false);
+        const [calls, setCalls] = useState(0);
+        const [saved, setSaved] = useState(null);
+        const edit = entry => { setEditing(entry); setForm({ mood: entry.mood, feelings: [...entry.feelings], contexts: [...entry.contexts], note: entry.note, occurredAt: localInput(entry.occurredAt) }); };
+        const reset = () => { setEditing(null); setForm(blankForm()); };
+        async function save() {
+          setCalls(value => value + 1); setBusy(true);
+          await new Promise(resolve => setTimeout(resolve, TEST.saveDelayMs));
+          if (mode === 'false' || form.mood === null) { setBusy(false); return false; }
+          const stamp = new Date().toISOString();
+          const next = { id: editing?.id ?? `fixture-saved-${calls + 1}`, ...structuredClone(form), occurredAt: new Date(form.occurredAt).toISOString(), createdAt: editing?.createdAt ?? stamp, updatedAt: stamp, revision: editing ? editing.revision + 1 : 1 };
+          setSaved(next); setEntries(value => editing ? value.map(entry => entry.id === editing.id ? next : entry) : [...value, next]); reset(); setBusy(false); return true;
+        }
+        return h(React.Fragment, null,
+          h('div', { className: 'fixture-controls' },
+            h('label', null, '模拟保存结果', h('select', { 'aria-label': '模拟保存结果', value: mode, onChange: event => setMode(event.target.value) }, h('option', { value: 'success' }, '返回 true'), h('option', { value: 'false' }, '返回 false'))),
+            h('button', { type: 'button', onClick: () => edit(entries.find(entry => entry.id === 'fixture-old')) }, '编辑旧记录'),
+            h('button', { type: 'button', onClick: reset }, '新草稿')),
+          h(HomeComposer, { form, setForm, editing, busy, onSave: save, onCancel: reset, onKeepNew: () => setEditing(null), onLoadLatest: () => editing && edit(entries.find(entry => entry.id === editing.id)) }),
+          h('div', { className: 'fixture-journal' }, h(JournalView, { entries, onEdit: edit, onDelete: entry => setEntries(value => value.filter(item => item.id !== entry.id)), onCreate: reset })),
+          h('output', { className: 'fixture-proof', 'aria-label': '本地保存诊断' }, JSON.stringify({ generation: id, calls, saved, count: entries.length })));
+      }
+
+      /** 所有验收都观察公开DOM，不读取React fiber、hooks或组件内部状态。 */
+      const mount = document.querySelector('#journal-test-mount');
+      const root = createRoot(mount);
+      const run = document.querySelector('#run-journal-tests');
+      const status = document.querySelector('#journal-test-status');
+      const current = document.querySelector('#journal-test-current');
+      const results = document.querySelector('#journal-test-results');
+      let generation = 0;
+      const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const assert = (condition, message) => { if (!condition) throw new Error(message); };
+      async function until(check, label, timeout = TEST.timeoutMs) { const end = performance.now() + timeout; while (performance.now() < end) { const value = check(); if (value) return value; await sleep(TEST.pollMs); } throw new Error(`等待超时：${label}`); }
+      const composer = () => mount.querySelector('.home-page');
+      const shelf = () => mount.querySelector('.journal-shelf');
+      const proof = () => JSON.parse(mount.querySelector('[aria-label="本地保存诊断"]').textContent);
+      // 标签计数是可见徽标，不属于按钮名称；仅在副本里去掉徽标，真实DOM保持不变。
+      const button = (label, scope = mount) => [...scope.querySelectorAll('button')].find(item => { const copy = item.cloneNode(true); copy.querySelectorAll('small, .notebook-count, .filter-count').forEach(badge => badge.remove()); return copy.textContent.trim() === label || item.getAttribute('aria-label') === label; });
+      async function click(label, scope = mount) { const target = await until(() => button(label, scope), `按钮 ${label}`); assert(!target.disabled, `按钮不可用：${label}`); target.click(); await sleep(TEST.settleMs); return target; }
+      async function input(selector, value, scope = mount) {
+        const target = await until(() => scope.querySelector(selector), `输入 ${selector}`);
+        const prototype = target instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : target instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(prototype, 'value').set.call(target, value);
+        target.dispatchEvent(new Event('input', { bubbles: true })); target.dispatchEvent(new Event('change', { bubbles: true })); await sleep(TEST.settleMs);
+      }
+      async function resetHarness() { generation += 1; root.render(h(MemoryRouter, { key: generation }, h(Harness, { id: generation }))); await until(() => composer() && proof().generation === generation && !mount.querySelector('.journal-notebook'), '新夹具就绪'); }
+      async function openNotebook() { if (!composer().querySelector('.journal-notebook')) await click('贴个心情', composer()); }
+      async function writeNote(value = TEST.note) { await openNotebook(); await click('小纸条', composer()); await input('textarea[aria-label="写下此刻"]', value, composer()); }
+      async function save() { await click('记下此刻', composer()); await until(() => !composer().querySelector('.home-save').disabled || composer().querySelector('.notebook-receipt'), '保存回调完成'); }
+
+      /** 九个关键流程各自重建，避免一次保存后的短暂成功态污染下一项。 */
+      const tests = [
+        ['贴纸可以选择、取消，并跨标签保留', async () => {
+          await openNotebook(); await click('疲惫', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'true', '感受未选中');
+          await click('疲惫', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'false', '感受未取消');
+          await click('期待', composer()); await click('今天的事', composer()); await click('工作', composer()); await click('贴心情', composer());
+          assert(button('期待', composer()).getAttribute('aria-pressed') === 'true', '切换后感受丢失'); await click('今天的事', composer()); assert(button('工作', composer()).getAttribute('aria-pressed') === 'true', '切换后情境丢失');
+        }],
+        ['小提示只改变引导，不覆盖已写正文', async () => {
+          await writeNote(); await click('谢谢自己', composer()); assert(composer().querySelector('textarea').value === TEST.note, '提示覆盖了正文');
+          assert(composer().querySelector('.notebook-question').textContent.includes('抱抱'), '提示未切换');
+        }],
+        ['收起再展开仍保留文字和贴纸', async () => {
+          await openNotebook(); await click('满足', composer()); await writeNote(); await click('收起', composer()); await click('继续补充', composer());
+          await click('小纸条', composer()); assert(composer().querySelector('textarea').value === TEST.note, '收起后正文丢失'); await click('贴心情', composer()); assert(button('满足', composer()).getAttribute('aria-pressed') === 'true', '收起后贴纸丢失');
+        }],
+        ['保存返回false不显示成功，草稿继续保留', async () => {
+          await click('平静', composer()); await writeNote(); await input('select[aria-label="模拟保存结果"]', 'false'); await save();
+          assert(proof().calls === 1 && proof().saved === null && proof().count === 2, '失败仍写入记录');
+          assert(!composer().querySelector('.notebook-receipt') && composer().querySelector('textarea').value === TEST.note, '失败后出现成功反馈或草稿丢失');
+        }],
+        ['可以不写文字，只保存真实选择的心情', async () => {
+          await click('平静', composer()); await save(); await until(() => proof().saved, '无字保存');
+          assert(proof().saved.mood === 3 && proof().saved.note === '' && proof().count === 3, '无字保存内容错误');
+          assert(shelf().textContent.includes('这一刻，先用心情记着'), '无字记录缺少回看文案');
+        }],
+        ['成功回调只保存一次，并展示和收起反馈', async () => {
+          await click('轻快', composer()); await writeNote(); const target = button('记下此刻', composer()); target.click(); target.click(); target.click();
+          await until(() => composer().querySelector('.notebook-receipt'), '成功反馈'); assert(proof().calls === 1 && proof().saved.note === TEST.note, '重复点击造成多次保存');
+          assert(composer().querySelector('.home-save').textContent.includes('已记下'), '成功按钮状态缺失');
+          await until(() => !composer().querySelector('.notebook-receipt'), '反馈自然收起', JOURNAL_SETTINGS.receiptMs + TEST.timeoutMs); assert(proof().count === 3, '反馈收起改动了记录');
+        }],
+        ['编辑旧记录保留时间和标签，只更新同一条记录', async () => {
+          await click('编辑旧记录'); await until(() => composer().querySelector('textarea'), '自动展开编辑'); assert(composer().querySelector('textarea').value === SEEDS[0].note, '旧正文未回填');
+          await click('贴心情', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'true', '旧感受未回填'); await click('今天的事', composer()); assert(button('工作', composer()).getAttribute('aria-pressed') === 'true', '旧情境未回填');
+          await click('小纸条', composer()); await input('textarea', TEST.editedNote, composer()); await click('保存修改', composer()); await until(() => proof().saved, '修改保存');
+          const saved = proof().saved; assert(saved.id === SEEDS[0].id && saved.revision === 2 && saved.occurredAt === SEEDS[0].occurredAt && proof().count === 2 && shelf().textContent.includes(TEST.editedNote), '修改丢失原身份、时间或产生重复');
+        }],
+        ['时间线筛选组合与清除筛选保持准确', async () => {
+          await click('筛选', shelf()); await input('select[aria-label="筛选情绪"]', '2', shelf()); assert(shelf().querySelectorAll('.entry-item').length === 1 && shelf().textContent.includes(SEEDS[0].note), '情绪筛选错误');
+          await input('select[aria-label="筛选情境"]', '工作', shelf()); await input('select[aria-label="筛选情绪"]', '5', shelf()); assert(shelf().textContent.includes('没有匹配的片刻'), '组合筛选未取交集');
+          await click('清除筛选', shelf()); assert(shelf().querySelectorAll('.entry-item').length === 2, '清除后记录未恢复');
+        }],
+        ['月历按真实日期筛选，并可切月和恢复时间线', async () => {
+          await click('月历', shelf()); assert(shelf().querySelectorAll('.calendar-cell').length === 42, '月历格数错误');
+          const key = dayKey(SEEDS[0].occurredAt); const cell = shelf().querySelector(`.calendar-cell[aria-label^="${key}，"]`); assert(cell, '旧记录日期不可见'); cell.click(); await sleep(TEST.settleMs);
+          assert(cell.getAttribute('aria-pressed') === 'true' && shelf().querySelectorAll('.entry-item').length === SEEDS.filter(entry => dayKey(entry.occurredAt) === key).length, '日期筛选错误');
+          const heading = shelf().querySelector('.calendar-header h2').textContent; await click('下个月', shelf()); assert(shelf().querySelector('.calendar-header h2').textContent !== heading, '切月无变化'); await click('上个月', shelf());
+          shelf().querySelector(`.calendar-cell[aria-label^="${key}，"]`).click(); await sleep(TEST.settleMs); await click('时间线', shelf()); assert(shelf().querySelectorAll('.entry-item').length === 2 && !shelf().querySelector('.calendar-panel'), '取消日期后未恢复全部时间线');
+        }],
+      ];
+
+      /** 点击公开按钮串行运行；结果和异常写入DOM，失败后仍继续检查其余独立流程。 */
+      run.addEventListener('click', async () => {
+        run.disabled = true; results.replaceChildren(); status.dataset.status = 'running'; status.textContent = '运行中'; let passed = 0;
+        for (const [name, test] of tests) {
+          current.textContent = name; const row = document.createElement('li'); results.append(row);
+          try { await resetHarness(); await test(); row.dataset.result = 'pass'; row.textContent = `PASS · ${name}`; passed += 1; }
+          catch (error) { row.dataset.result = 'fail'; row.textContent = `FAIL · ${name}：${error.message}`; }
+        }
+        status.dataset.status = passed === tests.length ? 'passed' : 'failed'; status.textContent = `${passed} / ${tests.length} 通过`; current.textContent = '回归结束；下方组件仍可手动体验。'; run.disabled = false;
+      });
+      await resetHarness();
+    </script>
+  </body>
+</html>
