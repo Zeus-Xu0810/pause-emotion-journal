@@ -1,3 +1,4 @@
+import type { PetActivity, PetEvent, PetInput, PetResponse, PetTargets } from './pet-care';
 import type { MoodScore } from '../types';
 import type { MascotReply } from '../mascot-content';
 
@@ -18,11 +19,16 @@ export interface MascotSceneController {
   hitTest: (x: number, y: number) => MascotHit | null;
   manipulate: (value: MascotManipulation | null) => void;
   react: (kind: MascotGesture, hit?: MascotHit) => void;
+  setPetActivity: (activity: PetActivity | null) => void;
+  petInput: (input: PetInput) => void;
+  petRespond: (response: PetResponse | null) => void;
   dispose: () => void;
 }
 export interface MascotSceneOptions {
   mood: MoodScore | null;
   onReady: (ready: boolean) => void;
+  onPetEvent?: (event: PetEvent) => void;
+  onPetTargets?: (targets: PetTargets) => void;
   /** 包围框用host内CSS像素，允许HTML触控区跟随模型；不逐帧触发React重渲染。 */
   onBounds: (bounds: MascotBounds) => void;
 }
