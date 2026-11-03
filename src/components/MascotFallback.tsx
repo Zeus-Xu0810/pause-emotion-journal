@@ -34,6 +34,7 @@ const FALLBACK = {
     handToMouthSeconds: 0.44,
     keyboardFlightSeconds: 0.5,
     keyboardArc: 0.12,
+    keyboardCatchStart: 0.55,
     throwBackX: 0.82,
     throwBackY: -0.85,
     handReachPx: 20,
@@ -289,7 +290,8 @@ function useFallbackCare(options: FallbackCareOptions) {
         const amount = Math.min(1, state.elapsed / FALLBACK.care.keyboardFlightSeconds); const smooth = amount * amount * (3 - 2 * amount);
         const previousPoint = { x: state.flight.x, y: state.flight.y }; const hand = target[state.hand];
         setPosition(state, { x: state.from.x + (hand.x - state.from.x) * smooth, y: state.from.y + (hand.y - state.from.y) * smooth - Math.sin(amount * Math.PI) * FALLBACK.care.keyboardArc });
-        catchAlong(state, previousPoint, state.flight);
+        // 先留出抬起递送的可见过程，再允许接稳，不在原位第一帧直接判成功。
+        if (amount >= FALLBACK.care.keyboardCatchStart) catchAlong(state, previousPoint, state.flight);
       } else if (state.stage === 'hand') {
         setPosition(state, target[state.hand]);
         if (state.elapsed >= FALLBACK.care.handHoldSeconds) { state.stage = 'mouth'; state.elapsed = 0; state.from = { x: state.flight.x, y: state.flight.y }; }
