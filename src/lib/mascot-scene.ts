@@ -5,21 +5,17 @@ import type { MascotExpression, MascotReply } from '../mascot-content';
 import type { MoodScore } from '../types';
 import type { MascotSceneController, MascotSceneOptions, MascotManipulation, MascotHit, MascotGesture } from './mascot-interaction-types';
 import { deformMascotPoint } from './mascot-deformation';
+import { advanceMascotSpring, mascotSoftLimit, MASCOT_DYNAMICS as DYNAMICS } from './mascot-dynamics';
 import type { MascotDeformation } from './mascot-deformation';
 
 /** 直接操纵的可修改输入集中在此；形变上限保持曲面连续，避免捏拉翻面。 */
 const INTERACTION = {
-  springStiffness: 110,
-  springDamping: 18,
-  maxPullX: 0.32,
-  maxPullY: 0.24,
-  bodyTranslation: 0.22,
-  eyeTravelX: 0.042,
-  eyeTravelY: 0.031,
-  nearEyeHeight: 0.65,
-  farEyeHeight: 1.12,
+  eyeTravelX: 0.052, eyeTravelY: 0.037,
+  nearEyeHeight: 0.92, farEyeHeight: 1.08,
+  reactionDurations: { poke: 620, pinch: 920, drag: 1150, pat: 1050, tickle: 1100, wave: 950, bounce: 1100, shake: 1450 } as Record<MascotGesture, number>,
   reactionDurationMs: 950,
-  dizzyDurationMs: 1350,
+  particleCount: 10, particleLifetime: 0.95,
+  idleActions: ['tilt', 'look', 'swing', 'stretch', 'shy', 'nod'] as MascotReply['action'][],
 };
 const GESTURE_EXPRESSION: Record<MascotGesture, MascotExpression> = { poke: 'curious', pinch: 'shy', drag: 'curious', pat: 'sleepy', tickle: 'happy', wave: 'happy', bounce: 'happy', shake: 'curious' };
 
@@ -59,6 +55,11 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     const mouthRest = new Map<THREE.BufferGeometry, Float32Array>();
     const eyes: THREE.Group[] = []; const arms: THREE.Group[] = []; const feet: THREE.Mesh[] = [];
     const pupils: THREE.Mesh[] = []; const highlights: THREE.Mesh[] = [];
+    const brows: THREE.Group[] = [];
+    let laughMouth: THREE.Group;
+    let contactShadow: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null = null;
+    const particles: { mesh: THREE.Mesh<THREE.CircleGeometry, THREE.MeshBasicMaterial>; velocity: THREE.Vector3; age: number; spin: number }[] = [];
+    const effects = new THREE.Group(); scene.add(effects);
     const faceAttachments: { object: THREE.Object3D; rest: THREE.Vector3; tangentX: THREE.Vector3; tangentY: THREE.Vector3 }[] = [];
     const hitTargets: THREE.Object3D[] = [];
     let blushMaterial: THREE.MeshStandardMaterial;
@@ -67,10 +68,19 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     let fieldKind: MascotGesture = 'poke';
     const fieldAnchor = new THREE.Vector3(0, -0.05, SETTINGS.body.depth);
     const pull = new THREE.Vector3(); const pullVelocity = new THREE.Vector3(); const pullTarget = new THREE.Vector3();
+    // 身体重心和脸颊软肉各有弹簧，松手后再戳脸不会把悬挂中的身体瞬移回去。
+    const grab = new THREE.Vector3(); const grabVelocity = new THREE.Vector3(); const grabTarget = new THREE.Vector3();
     let pressure = 0; let pressureVelocity = 0; let pressureTarget = 0;
     let pinch = 0; let pinchVelocity = 0; let pinchTarget = 0;
     let reaction: { kind: MascotGesture; hit: MascotHit | undefined; elapsed: number; duration: number } | null = null;
     let impulse = 0;
+    // 角色保留短时兴奋和注意力；自主动作只在手离开后发生，不争抢当前手势。
+    let energy = 0; let lastContact = 0; let nextBlink = 1.5 + Math.random() * 2;
+    let blinkStarted = -10; let blinkAmount = 0;
+    let nextIdle = DYNAMICS.idleMinimumSeconds; let idle: { action: MascotReply['action']; elapsed: number; duration: number } | null = null;
+    let idleLookX = 0; let idleLookY = 0; let wake = 0;
+    const springAxis = { value: 0, velocity: 0 };
+    const effectOrigin = new THREE.Vector3();
     let hasLook = false;
     let eyeLookX = 0; let eyeLookY = 0; let eyeProximity = 0;
     let previousDeformed = false;
@@ -120,8 +130,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
 
     function updateDeformation() {
       if (!bodyGeometry) return;
-      deformation.kind = fieldKind; deformation.pressure = pressure; deformation.pinch = pinch; deformation.impulse = impulse; deformation.time = time;
-      const deformed = pull.lengthSq() > 0.0000001 || Math.abs(pressure) + Math.abs(pinch) + Math.abs(impulse) > 0.0001;
+      deformation.kind = fieldKind; deformation.pull = fieldKind === 'drag' ? grab : pull; deformation.pressure = pressure; deformation.pinch = pinch; deformation.impulse = impulse; deformation.time = time;
+      const deformed = (fieldKind === 'drag' ? grab : pull).lengthSq() > 0.0000001 || Math.abs(pressure) + Math.abs(pinch) + Math.abs(impulse) > 0.0001;
       if (deformed || previousDeformed) {
         const positions = bodyGeometry.getAttribute('position') as THREE.BufferAttribute;
         for (let index = 0; index < positions.count; index += 1) {
@@ -153,12 +163,13 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
 
     // 眼球和高光独立移动，靠近时眯眼、远处时略睁大；不是仅转动整颗团子。
     function updateEyes(delta: number) {
-      const settle = reduced ? 1 : 1 - Math.exp(-9 * delta);
+      const settle = reduced ? 1 : 1 - Math.exp(-18 * delta);
       const faceCenter = faceProjection.set(0, SETTINGS.face.eyeY, SETTINGS.body.depth).applyMatrix4(rig.matrixWorld).project(camera);
       const distance = Math.hypot(pointerX - faceCenter.x, pointerY + faceCenter.y);
       const proximity = hasLook ? 1 - THREE.MathUtils.clamp(distance / 0.62, 0, 1) : 0;
-      eyeLookX += ((hasLook ? pointerX : 0) - eyeLookX) * settle;
-      eyeLookY += ((hasLook ? pointerY : 0) - eyeLookY) * settle;
+      const targetX = hasLook ? THREE.MathUtils.clamp((pointerX - faceCenter.x) * 1.8, -1, 1) : idle ? idleLookX : 0;
+      const targetY = hasLook ? THREE.MathUtils.clamp((pointerY + faceCenter.y) * 1.8, -1, 1) : idle ? idleLookY : 0;
+      eyeLookX += (targetX - eyeLookX) * settle; eyeLookY += (targetY - eyeLookY) * settle;
       eyeProximity += (proximity - eyeProximity) * settle;
       const gesture = held?.kind ?? reaction?.kind;
       const gesturePulse = held ? Math.max(0.35, pressure) : reaction ? Math.sin(Math.PI * reaction.elapsed / reaction.duration) : 0;
@@ -170,7 +181,13 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         highlights[index].position.set(-0.018 + dx * 1.18, 0.027 + dy * 0.85, 0.034);
         const interest = hasLook ? THREE.MathUtils.lerp(INTERACTION.farEyeHeight, INTERACTION.nearEyeHeight, eyeProximity) : 1;
         eyes[index].scale.y *= interest;
-        if (gesture === 'pat' || gesture === 'tickle') eyes[index].scale.y *= Math.max(0.14, 1 - gesturePulse * 0.85);
+        if (gesture === 'pat' || gesture === 'tickle') eyes[index].scale.y *= Math.max(0.12, 1 - gesturePulse * 0.8);
+        if (gesture === 'pinch' && (held?.hit.region ?? reaction?.hit?.region) === (index === 0 ? 'cheek-left' : 'cheek-right')) eyes[index].scale.y *= 0.55;
+        const sleepy = !held && !reaction && !active ? THREE.MathUtils.smoothstep(time - lastContact, DYNAMICS.sleepAfterSeconds, DYNAMICS.sleepAfterSeconds + 8) : 0;
+        eyes[index].scale.y *= (1 - blinkAmount * 0.94) * (1 - sleepy * 0.7);
+        eyes[index].scale.x = 1 + wake * 0.1 + (gesture === 'drag' ? 0.1 : 0);
+        // 眉毛与眼球分层：拉脸一高一低，摸头放松，提起来时先抬眉。
+        brows[index]?.rotateZ((index === 0 ? -1 : 1) * (gesture === 'pinch' ? 0.22 + pull.x * 0.5 : gesture === 'drag' ? -0.22 : -eyeLookY * 0.12));
       }
     }
 
@@ -199,15 +216,65 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       return { region, local: { x: local.x, y: local.y, z: local.z } };
     }
 
-    function resetSpring() { pull.setScalar(0); pullVelocity.setScalar(0); pullTarget.setScalar(0); pressure = 0; pressureVelocity = 0; pressureTarget = 0; pinch = 0; pinchVelocity = 0; pinchTarget = 0; }
+    function resetSpring() { grab.setScalar(0); grabVelocity.setScalar(0); grabTarget.setScalar(0); pull.setScalar(0); pullVelocity.setScalar(0); pullTarget.setScalar(0); pressure = 0; pressureVelocity = 0; pressureTarget = 0; pinch = 0; pinchVelocity = 0; pinchTarget = 0; }
     function stepSpring(delta: number) {
-      const stiffness = INTERACTION.springStiffness; const damping = INTERACTION.springDamping;
-      for (const axis of ['x', 'y', 'z'] as const) { pullVelocity[axis] += ((pullTarget[axis] - pull[axis]) * stiffness - pullVelocity[axis] * damping) * delta; pull[axis] += pullVelocity[axis] * delta; }
-      pressureVelocity += ((pressureTarget - pressure) * stiffness - pressureVelocity * damping) * delta; pressure += pressureVelocity * delta;
-      pinchVelocity += ((pinchTarget - pinch) * stiffness - pinchVelocity * damping) * delta; pinch += pinchVelocity * delta;
-      if (!held && pull.lengthSq() + pullVelocity.lengthSq() < 0.000001) { pull.setScalar(0); pullVelocity.setScalar(0); }
-      if (!held && Math.abs(pressure) + Math.abs(pressureVelocity) < 0.0005) { pressure = 0; pressureVelocity = 0; }
-      if (!held && Math.abs(pinch) + Math.abs(pinchVelocity) < 0.0005) { pinch = 0; pinchVelocity = 0; }
+      const stiffness = held ? DYNAMICS.heldStiffness : DYNAMICS.releaseStiffness;
+      const damping = held ? DYNAMICS.heldDamping : DYNAMICS.releaseDamping;
+      for (const axis of ['x', 'y', 'z'] as const) {
+        springAxis.value = pull[axis]; springAxis.velocity = pullVelocity[axis];
+        advanceMascotSpring(springAxis, pullTarget[axis], delta, stiffness, damping);
+        pull[axis] = springAxis.value; pullVelocity[axis] = springAxis.velocity;
+        springAxis.value = grab[axis]; springAxis.velocity = grabVelocity[axis];
+        advanceMascotSpring(springAxis, grabTarget[axis], delta, stiffness, damping); grab[axis] = springAxis.value; grabVelocity[axis] = springAxis.velocity;
+      }
+      springAxis.value = pressure; springAxis.velocity = pressureVelocity;
+      advanceMascotSpring(springAxis, pressureTarget, delta, held ? DYNAMICS.pressureStiffness : stiffness, held ? DYNAMICS.pressureDamping : damping);
+      pressure = springAxis.value; pressureVelocity = springAxis.velocity;
+      springAxis.value = pinch; springAxis.velocity = pinchVelocity;
+      advanceMascotSpring(springAxis, pinchTarget, delta, stiffness, damping);
+      pinch = springAxis.value; pinchVelocity = springAxis.velocity;
+    }
+
+    /** 不规则眨眼、目光停留与重心小动作，让静置的角色也有自己的节奏。 */
+    function updateLife(delta: number) {
+      energy *= Math.exp(-delta / 4.5); wake *= Math.exp(-delta * 4);
+      if (time >= nextBlink) { blinkStarted = time; nextBlink = time + DYNAMICS.blinkMinimumSeconds + Math.random() * DYNAMICS.blinkRangeSeconds; }
+      const blinkPhase = (time - blinkStarted) / DYNAMICS.blinkSeconds;
+      blinkAmount = blinkPhase >= 0 && blinkPhase < 1 ? Math.sin(blinkPhase * Math.PI) ** 2 : 0;
+      if (held || reaction || active) { idle = null; nextIdle = time + 3; return; }
+      if (!idle && time >= nextIdle) {
+        idle = { action: INTERACTION.idleActions[Math.floor(Math.random() * INTERACTION.idleActions.length)], elapsed: 0, duration: 1.7 + Math.random() * 1.2 };
+        idleLookX = (Math.random() - 0.5) * 0.65; idleLookY = (Math.random() - 0.5) * 0.3;
+        nextIdle = time + DYNAMICS.idleMinimumSeconds + Math.random() * DYNAMICS.idleRangeSeconds;
+      }
+      if (idle) { idle.elapsed += delta; if (idle.elapsed >= idle.duration) idle = null; }
+    }
+
+    /** 少量反馈粒子按需复用，不进入命中框，也不为每次互动分配GPU资源。 */
+    function emitFeeling(kind: MascotGesture, hit?: MascotHit) {
+      if (reduced) return;
+      scene.updateMatrixWorld(true);
+      effectOrigin.set(hit?.local.x ?? 0, hit?.local.y ?? 0.4, hit?.local.z ?? 0.85); rig.localToWorld(effectOrigin);
+      for (let index = 0; index < particles.length; index += 1) {
+        const particle = particles[index]; const angle = index / particles.length * Math.PI * 2;
+        particle.age = -index * 0.018; particle.mesh.visible = true;
+        particle.mesh.position.copy(effectOrigin); particle.mesh.position.z += 0.12;
+        particle.velocity.set(Math.cos(angle) * (0.12 + Math.random() * 0.18), 0.22 + Math.sin(angle) * 0.14, 0);
+        particle.spin = (Math.random() - 0.5) * 2;
+        particle.mesh.material.color.set(kind === 'pat' || kind === 'pinch' ? '#d4a4a0' : '#c7af72');
+      }
+    }
+    function updateFeeling(delta: number) {
+      for (const particle of particles) {
+        if (!particle.mesh.visible) continue;
+        particle.age += delta;
+        if (reduced || particle.age >= INTERACTION.particleLifetime) { particle.mesh.visible = false; continue; }
+        const phase = Math.max(0, particle.age / INTERACTION.particleLifetime);
+        particle.mesh.position.addScaledVector(particle.velocity, delta); particle.velocity.y -= delta * 0.19;
+        particle.mesh.rotation.z += particle.spin * delta;
+        particle.mesh.material.opacity = Math.sin(Math.PI * phase) * 0.7;
+        particle.mesh.scale.setScalar(0.5 + Math.sin(Math.PI * phase) * 0.6);
+      }
     }
 
     // 部件始终从休息姿势计算动作，避免连续互动导致缩放或转向不断累积。
@@ -219,6 +286,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       feet.forEach((foot, index) => { foot.position.set((index === 0 ? -1 : 1) * 0.33, -0.89, 0.35); foot.rotation.set(0, 0, 0); });
       const eyeHeight = expression === 'sleepy' ? 0.26 : expression === 'soft' ? 0.85 : 1;
       eyes[0].scale.y = expression === 'wink' ? 0.12 : eyeHeight; eyes[1].scale.y = eyeHeight;
+      if (!reduced) { const breath = Math.sin(time * (2.1 + energy * 0.35)); rig.scale.set(1 - breath * 0.007, 1 + breath * 0.01, 1); rig.rotation.z = Math.sin(time * 0.67) * 0.008; }
       blushMaterial.opacity = expression === 'shy' ? 0.46 : 0.27;
       if (action === 'blink') eyes.forEach(eye => { eye.scale.y *= 1 - Math.sin(progress * Math.PI * 2) ** 2 * 0.92; });
       else if (action === 'nod') rig.rotation.x = pulse * 0.15;
@@ -237,21 +305,45 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       else if (action === 'doze') rig.rotation.z = -pulse * 0.08;
     }
     function applyPhysicalPose() {
-      const kind = held?.kind ?? reaction?.kind;
+      const kind = held?.kind ?? reaction?.kind ?? (Math.abs(pressure) + pull.length() > 0.001 ? fieldKind : null);
       const progress = reaction ? THREE.MathUtils.clamp(reaction.elapsed / reaction.duration, 0, 1) : 0;
-      // 戳戳采用快速压入、短促释放；其余动作继续使用舒缓的完整往返节奏。
-      const pulse = held ? Math.max(0.35, pressure) : kind === 'poke' ? Math.min(1, Math.sin(Math.min(1, progress * 3) * Math.PI) * Math.exp(-progress * 1.4) * 1.2) : Math.sin(Math.PI * progress);
-      impulse = reaction && ['poke', 'pinch', 'pat', 'tickle'].includes(reaction.kind) ? pulse : 0;
-      if (kind === 'pat') rig.rotation.x += pulse * 0.06;
-      if (kind === 'tickle' && !reduced) { rig.rotation.z += Math.sin(time * 16) * pulse * 0.025; rig.scale.y *= 1 + pulse * 0.025; }
-      if (kind === 'wave') {
-        const index = (held?.hit.region ?? reaction?.hit?.region) === 'hand-left' ? 0 : 1;
-        arms[index].rotation.z += (index === 0 ? -1 : 1) * pulse * (0.8 + Math.sin(progress * Math.PI * 6) * 0.2);
+      const releasePulse = Math.sin(Math.min(1, progress * 2.4) * Math.PI) * Math.exp(-progress * 1.7);
+      const pulse = Math.min(1, Math.max(0, pressure, held ? 0.12 : reaction ? releasePulse : 0));
+      impulse = reaction && ['poke', 'pat', 'tickle'].includes(reaction.kind) ? pulse * 0.65 : 0;
+      const springMotion = reduced ? 0 : THREE.MathUtils.clamp((grabVelocity.x + pullVelocity.x) * 0.05 + pressureVelocity * 0.025, -0.22, 0.22);
+      if (kind === 'poke') { rig.rotation.z -= fieldAnchor.x * pulse * 0.08; rig.scale.x *= 1 + pulse * 0.035; rig.scale.y *= 1 - pulse * 0.04; }
+      if (kind === 'pinch' || fieldKind === 'pinch' && pull.lengthSq() > 0.0001) {
+        rig.rotation.z -= pull.x * 0.14;
+        // 两只短手伸向被捏的脸，脸颊放开后小手稍晚归位。
+        arms.forEach((arm, index) => { const side = index === 0 ? -1 : 1; arm.rotation.z -= side * (Math.abs(pull.x) * 0.6 + pulse * 0.2); arm.position.z += pulse * 0.2; });
       }
-      if (kind === 'bounce' && !reduced) { rig.position.y += pulse * 0.09; rig.scale.set(1 - pulse * 0.025, 1 + pulse * 0.045, 1); }
-      if (kind === 'shake' && !reduced) rig.rotation.z += Math.sin(progress * Math.PI * 8) * pulse * 0.075;
-      if (fieldKind === 'drag') { rig.position.x += pull.x * INTERACTION.bodyTranslation; rig.position.y += pull.y * INTERACTION.bodyTranslation; rig.rotation.z -= pull.x * 0.1; }
+      if (kind === 'pat') { rig.rotation.x += pulse * 0.11; rig.position.y -= pressure * 0.05; arms.forEach((arm, index) => { arm.rotation.z += (index === 0 ? -1 : 1) * pulse * 0.3; }); }
+      if (kind === 'tickle' && !reduced) {
+        const giggle = Math.sin(time * 21) * pulse;
+        rig.rotation.z += giggle * 0.065; rig.position.y += Math.abs(giggle) * 0.045;
+        rig.scale.y *= 1 - pulse * 0.045; rig.scale.x *= 1 + pulse * 0.05;
+        arms.forEach((arm, index) => { arm.rotation.z += (index === 0 ? -1 : 1) * pulse * (0.6 + Math.sin(time * 15) * 0.18); });
+      }
+      if (kind === 'wave') { const index = (held?.hit.region ?? reaction?.hit?.region) === 'hand-left' ? 0 : 1; arms[index].rotation.z += (index === 0 ? -1 : 1) * pulse * (0.95 + Math.sin(progress * Math.PI * 7) * 0.32); }
+      if (kind === 'bounce' && !reduced) {
+        // 蹦起之前先蹲一下，落地后再有一次小回弹。
+        const hop = progress < 0.18 ? -Math.sin(progress / 0.18 * Math.PI) * 0.045 : Math.max(0, Math.sin((progress - 0.18) / 0.82 * Math.PI * 1.6)) * 0.25 * (1 - progress * 0.6);
+        rig.position.y += hop; rig.scale.x *= 1 - hop * 0.13; rig.scale.y *= 1 + hop * 0.2;
+      }
+      if (kind === 'shake' && !reduced) rig.rotation.z += Math.sin(progress * Math.PI * 7) * Math.exp(-progress * 3) * 0.16;
+      if (grab.lengthSq() + grabVelocity.lengthSq() > 0.000001) {
+        // 身体真正离开原位；局部软肉、重心、四肢三层保留不同的跟随节奏。
+        rig.position.x += grab.x; rig.position.y += grab.y;
+        rig.rotation.z -= grab.x * 0.24 + springMotion;
+        const stretch = Math.max(0, grab.y) * 0.22;
+        rig.scale.y *= 1 + stretch; rig.scale.x *= 1 / Math.sqrt(1 + stretch);
+        arms.forEach((arm, index) => { const side = index === 0 ? -1 : 1; arm.rotation.z += side * (Math.abs(grab.y) * 0.6 + Math.sin(time * 9 + index) * Math.abs(grab.y) * 0.25) + springMotion * 1.8; });
+        feet.forEach((foot, index) => { foot.rotation.z += Math.sin(time * 10 + index * 1.4) * Math.abs(grab.y) * 0.65 + springMotion; });
+      }
+      if (!reduced) { arms.forEach((arm, index) => { arm.rotation.z += Math.sin(time * 1.7 + index * 1.8) * 0.025 + springMotion * (index === 0 ? 0.8 : 1.1); }); feet.forEach((foot, index) => { foot.rotation.x += Math.sin(time * 1.4 + index) * energy * 0.06; }); }
       updateDeformation();
+      if (laughMouth) { laughMouth.visible = kind === 'tickle' || kind === 'bounce' && pulse > 0.3; mouth.visible = !laughMouth.visible; }
+      if (contactShadow) { const lift = Math.max(0, rig.position.y); contactShadow.position.x = rig.position.x * 0.7; contactShadow.scale.setScalar(1 - Math.min(0.3, lift * 0.5)); contactShadow.material.opacity = 0.75 - Math.min(0.4, lift * 0.7); }
       scene.updateMatrixWorld(true);
     }
 
@@ -271,25 +363,27 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       bodyMaterial.color.lerp(color, settle);
       if (active) {
         active.elapsed += delta * 1000;
-        if (active.elapsed >= active.reply.durationMs) { active = null; setExpression(baseExpression(currentMood)); }
+        if (active.elapsed >= active.reply.durationMs) { active = null; if (!held && !reaction) setExpression(baseExpression(currentMood)); }
       }
       if (reaction) {
         reaction.elapsed += delta * 1000;
-        if (reaction.elapsed >= reaction.duration) { reaction = null; if (!held) setExpression(baseExpression(currentMood)); }
+        if (reaction.elapsed >= reaction.duration) { reaction = null; if (!held) setExpression(active?.reply.expression ?? baseExpression(currentMood)); }
       }
-      stepSpring(delta);
-      pose(active ? active.elapsed / active.reply.durationMs : 0, active?.reply.action ?? null);
-      applyPhysicalPose(); updateEyes(delta);
+      updateLife(delta); stepSpring(delta);
+      pose(active ? active.elapsed / active.reply.durationMs : idle ? idle.elapsed / idle.duration : 0, active?.reply.action ?? idle?.action ?? null);
+      applyPhysicalPose(); updateEyes(delta); updateFeeling(delta);
       // 拉伸时轻微放宽镜头，避免原本大体量的角色在边缘被裁切。
-      const targetZoom = 1 - Math.min(0.14, pull.length() * 0.36);
-      const zoom = camera.zoom + (targetZoom - camera.zoom) * settle;
+      const verticalSpace = camera.top / (1.15 + Math.abs(rig.position.y) + Math.abs(pull.y) * 0.15);
+      const horizontalSpace = camera.right / (1.25 + Math.abs(rig.position.x) + (fieldKind === 'pinch' ? Math.abs(pull.x) : 0));
+      const targetZoom = Math.min(1, verticalSpace, horizontalSpace);
+      const zoom = camera.zoom + (targetZoom - camera.zoom) * (1 - Math.exp(-12 * delta));
       if (Math.abs(camera.zoom - zoom) > 0.0001) { camera.zoom = zoom; camera.updateProjectionMatrix(); }
       draw(); requestFrame();
     }
     function visibilityChanged() { if (document.hidden) stop(); else { draw(); requestFrame(); } }
     function motionChanged(event: MediaQueryListEvent) {
       reduced = event.matches; stop();
-      if (reduced) { active = null; reaction = null; if (!held) resetSpring(); setExpression(baseExpression(currentMood)); floating.position.y = 0; gaze.rotation.set(SETTINGS.baseRotation.x, SETTINGS.baseRotation.y, 0); bodyMaterial.color.copy(color); renderDirect(); }
+      if (reduced) { blinkAmount = 0; idle = null; updateFeeling(0); active = null; reaction = null; if (!held) resetSpring(); setExpression(baseExpression(currentMood)); floating.position.y = 0; gaze.rotation.set(SETTINGS.baseRotation.x, SETTINGS.baseRotation.y, 0); bodyMaterial.color.copy(color); renderDirect(); }
       else requestFrame();
     }
 
@@ -341,8 +435,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         const rest = front(x, y, offset); object.position.copy(rest);
         faceAttachments.push({ object, rest, tangentX: front(x + 0.006, y, offset), tangentY: front(x, y + 0.006, offset) });
       };
-      const eyeGeometry = new THREE.SphereGeometry(SETTINGS.face.eyeRadius, 20, 16);
-      const glowGeometry = new THREE.SphereGeometry(0.016, 12, 10);
+      const eyeGeometry = new THREE.SphereGeometry(SETTINGS.face.eyeRadius * 1.16, 20, 16);
+      const glowGeometry = new THREE.SphereGeometry(0.019, 12, 10);
       const cheekGeometry = new THREE.SphereGeometry(0.12, 20, 12);
       for (const side of [-1, 1]) {
         const eye = new THREE.Group(); attach(eye, side * SETTINGS.face.eyeX, SETTINGS.face.eyeY, 0.025);
@@ -363,13 +457,21 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         mouthGeometries.set(face, mouthGeometry); mouthRest.set(mouthGeometry, new Float32Array(mouthGeometry.getAttribute('position').array));
       }
       mouth = new THREE.Mesh(mouthGeometries.get(expression)!, faceMaterial); rig.add(mouth);
+      const browGeometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(-0.055, 0, 0), new THREE.Vector3(0, 0.018, 0), new THREE.Vector3(0.055, 0, 0)]), 10, 0.009, 5, false);
+      for (const side of [-1, 1]) { const brow = new THREE.Group(); attach(brow, side * SETTINGS.face.eyeX, 0.35, 0.03); brow.add(new THREE.Mesh(browGeometry, faceMaterial)); rig.add(brow); brows.push(brow); }
+      laughMouth = new THREE.Group(); attach(laughMouth, 0, -0.235, 0.04);
+      const openMouth = new THREE.Mesh(limbGeometry, faceMaterial); openMouth.scale.set(0.115, 0.095, 0.025); laughMouth.add(openMouth);
+      const tongue = new THREE.Mesh(limbGeometry, new THREE.MeshStandardMaterial({ color: '#d59c98', roughness: 0.7 })); tongue.scale.set(0.065, 0.026, 0.013); tongue.position.set(0, -0.035, 0.024); laughMouth.add(tongue); rig.add(laughMouth); laughMouth.visible = false;
+      const sparkleGeometry = new THREE.CircleGeometry(0.018, 4);
+      for (let index = 0; index < INTERACTION.particleCount; index += 1) { const mesh = new THREE.Mesh(sparkleGeometry, new THREE.MeshBasicMaterial({ color: '#c7af72', transparent: true, depthWrite: false, opacity: 0 })); mesh.visible = false; effects.add(mesh); particles.push({ mesh, velocity: new THREE.Vector3(), age: 10, spin: 0 }); }
+
 
       // 透明背景上的真实投影叠加程序化柔影，轻浮时仍有稳定接触感。
       const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.ShadowMaterial({ opacity: 0.07 })); ground.rotation.x = -Math.PI / 2; ground.position.y = -1.05; ground.receiveShadow = true; scene.add(ground);
       const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const context = canvas.getContext('2d');
       if (context) {
         const gradient = context.createRadialGradient(64, 64, 7, 64, 64, 63); gradient.addColorStop(0, 'rgba(45,65,48,.23)'); gradient.addColorStop(0.4, 'rgba(45,65,48,.11)'); gradient.addColorStop(1, 'rgba(45,65,48,0)'); context.fillStyle = gradient; context.fillRect(0, 0, 128, 128);
-        shadowTexture = new THREE.CanvasTexture(canvas); const contact = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 2), new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false, opacity: 0.75 })); contact.rotation.x = -Math.PI / 2; contact.position.y = -1.044; scene.add(contact);
+        shadowTexture = new THREE.CanvasTexture(canvas); const contact = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 2), new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false, opacity: 0.75 })); contact.rotation.x = -Math.PI / 2; contact.position.y = -1.044; scene.add(contact); contactShadow = contact;
       }
       let shaderFailed = false; renderer.debug.onShaderError = () => { shaderFailed = true; }; renderer.compile(scene, camera);
       if (shaderFailed) {
@@ -389,26 +491,29 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         // 连续手势只修改目标值；松手后目标归零，阻尼弹簧负责平滑恢复到最新基础表情。
         manipulate(value) {
           if (disposed) return;
+          const starting = value && (!held || held.kind !== value.kind);
           held = value;
+          if (value) { lastContact = time; wake = 1; idle = null; if (starting) { energy = Math.min(1, energy + 0.2); if (value.kind === 'poke') pressure = Math.max(pressure, 0.16); } }
           if (!value) {
-            pullTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
+            pullTarget.setScalar(0); grabTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
             if (!reaction && !active) setExpression(baseExpression(currentMood));
             if (reduced) { resetSpring(); renderDirect(); }
             else requestFrame();
             return;
           }
           if (staticTimer) { clearTimeout(staticTimer); staticTimer = null; }
-          active = null; reaction = null; fieldKind = value.kind;
+          active = null; reaction = null; fieldKind = value.kind === 'shake' ? 'drag' : value.kind;
           fieldAnchor.set(value.hit.local.x, value.hit.local.y, value.hit.local.z);
           setExpression(GESTURE_EXPRESSION[value.kind]);
           const amount = THREE.MathUtils.clamp(value.strength, 0, 1);
           const worldX = value.dx * (camera.right - camera.left) / 2;
           const worldY = -value.dy * (camera.top - camera.bottom) / 2;
-          const pulling = value.kind === 'drag' || value.kind === 'pinch';
-          pullTarget.set(pulling ? THREE.MathUtils.clamp(worldX, -INTERACTION.maxPullX, INTERACTION.maxPullX) : 0, pulling ? THREE.MathUtils.clamp(worldY, -INTERACTION.maxPullY, INTERACTION.maxPullY) : 0, 0);
+          const grabbing = value.kind === 'drag' || value.kind === 'shake';
+          grabTarget.set(grabbing ? mascotSoftLimit(worldX, DYNAMICS.dragLimitX) : 0, grabbing ? mascotSoftLimit(worldY, worldY >= 0 ? DYNAMICS.dragLimitUp : DYNAMICS.dragLimitDown) : 0, 0);
+          pullTarget.set(value.kind === 'pinch' ? mascotSoftLimit(worldX, DYNAMICS.cheekLimitX) : 0, value.kind === 'pinch' ? mascotSoftLimit(worldY, DYNAMICS.cheekLimitY) : 0, 0);
           pressureTarget = ['poke', 'pinch', 'pat', 'tickle'].includes(value.kind) ? amount : 0;
           pinchTarget = value.kind === 'pinch' ? THREE.MathUtils.clamp((value.pinchScale ?? 1) - 1, -0.5, 0.5) : 0;
-          if (reduced) { pull.copy(pullTarget); pullVelocity.setScalar(0); pressure = pressureTarget; pinch = pinchTarget; renderDirect(); }
+          if (reduced) { grab.copy(grabTarget); grabVelocity.setScalar(0); pull.copy(pullTarget); pullVelocity.setScalar(0); pressure = pressureTarget; pinch = pinchTarget; renderDirect(); }
           else requestFrame();
         },
         // 区域戳按的几何和表情优先于随机动作，文字仍由 React 层独立展示。
@@ -416,11 +521,11 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           if (disposed) return;
           if (staticTimer) { clearTimeout(staticTimer); staticTimer = null; }
           held = null; active = null;
-          // 快速摇晃通常接在拖动后，保留已有身体回弹，不能在眩晕开始时瞬间跳回原位。
-          const keepDragSpring = kind === 'shake' && fieldKind === 'drag';
-          if (kind !== 'drag' && kind !== 'pinch' && !keepDragSpring) resetSpring();
-          if (!keepDragSpring) fieldKind = kind;
-          pullTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
+          // 松手仅改变目标和反应，不清空当前位移/速度，新的触摸可以直接接住余振。
+          fieldKind = kind === 'shake' ? 'drag' : kind;
+          lastContact = time; wake = 1; energy = Math.min(1, energy + 0.22); idle = null;
+          emitFeeling(kind, hit);
+          pullTarget.setScalar(0); grabTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
           if (hit) fieldAnchor.set(hit.local.x, hit.local.y, hit.local.z);
           else fieldAnchor.set(0, kind === 'pat' ? 0.65 : kind === 'tickle' ? -0.4 : 0, kind === 'pat' ? 0.5 : SETTINGS.body.depth);
           setExpression(GESTURE_EXPRESSION[kind]);
@@ -430,7 +535,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
             renderDirect();
             staticTimer = setTimeout(() => { if (!disposed) { reaction = null; impulse = 0; setExpression(baseExpression(currentMood)); renderDirect(); } }, INTERACTION.reactionDurationMs);
           } else {
-            reaction = { kind, hit, elapsed: 0, duration: kind === 'shake' ? INTERACTION.dizzyDurationMs : INTERACTION.reactionDurationMs };
+            reaction = { kind, hit, elapsed: 0, duration: INTERACTION.reactionDurations[kind] * (0.94 + Math.random() * 0.12) };
             requestFrame();
           }
         },
@@ -438,12 +543,11 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         play(next) {
           if (disposed || held) return;
           if (staticTimer) clearTimeout(staticTimer);
-          reaction = null;
-          setExpression(next.expression);
+          if (!reaction) setExpression(next.expression);
           if (reduced) { active = null; renderDirect(); staticTimer = setTimeout(() => { if (!disposed) { setExpression(baseExpression(currentMood)); renderDirect(); } }, next.durationMs); }
           else { active = { reply: next, elapsed: 0 }; requestFrame(); }
         },
-        look(x, y) { if (!disposed && !reduced) { pointerX = THREE.MathUtils.clamp(x, -1, 1); pointerY = THREE.MathUtils.clamp(y, -1, 1); hasLook = Math.abs(x) + Math.abs(y) > 0.00001; requestFrame(); } },
+        look(x, y) { if (!disposed && !reduced) { if (!hasLook && Math.abs(x) + Math.abs(y) > 0.01) { wake = 1; lastContact = time; } pointerX = THREE.MathUtils.clamp(x, -1, 1); pointerY = THREE.MathUtils.clamp(y, -1, 1); hasLook = Math.abs(x) + Math.abs(y) > 0.00001; requestFrame(); } },
       };
       resizeObserver = new ResizeObserver(resize); resizeObserver.observe(host);
       if ('IntersectionObserver' in window) { observer = new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; if (inView) { draw(); requestFrame(); } else stop(); }, { threshold: 0.01 }); observer.observe(host); }

@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { deformMascotPoint } from '../src/lib/mascot-deformation.ts';
 import type { MascotDeformation, SurfacePoint } from '../src/lib/mascot-deformation.ts';
 import type { MascotGesture } from '../src/lib/mascot-interaction-types.ts';
+import { MASCOT_DYNAMICS } from '../src/lib/mascot-dynamics.ts';
 import { MASCOT_SETTINGS } from '../src/mascot-content.ts';
 
 /** 测试输入集中在此：覆盖当前合法操纵极值，不依赖 Three.js 或浏览器。 */
 const TEST_SETTINGS = {
-  maximumPull: { x: 0.32, y: 0.24 },
+  maximumPull: { x: MASCOT_DYNAMICS.cheekLimitX * 1.15, y: MASCOT_DYNAMICS.cheekLimitY * 1.15 },
   maximumPinch: 0.5,
   derivativeStep: 0.0001,
   faceClearance: 0.025,
@@ -34,7 +35,7 @@ function determinant([a, b, c]: number[][]): number {
 }
 const extremeFields = TEST_SETTINGS.anchors.flatMap(anchor => (['poke', 'pinch', 'drag', 'pat', 'tickle'] as const).flatMap(kind => [-1, 1].flatMap(horizontal => [-1, 1].map(vertical => ({
   ...baseField, kind, anchor,
-  pull: { x: horizontal * TEST_SETTINGS.maximumPull.x, y: vertical * TEST_SETTINGS.maximumPull.y, z: 0 },
+  pull: { x: horizontal * (kind === 'drag' ? MASCOT_DYNAMICS.dragLimitX : kind === 'pinch' ? TEST_SETTINGS.maximumPull.x : 0), y: vertical * (kind === 'drag' ? MASCOT_DYNAMICS.dragLimitUp : kind === 'pinch' ? TEST_SETTINGS.maximumPull.y : 0), z: 0 },
   pressure: 1, impulse: 1, pinch: horizontal * TEST_SETTINGS.maximumPinch,
 })))));
 

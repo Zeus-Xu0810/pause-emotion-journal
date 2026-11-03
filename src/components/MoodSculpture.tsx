@@ -43,27 +43,36 @@ export default function MoodSculpture({ mood = null, className = '' }: MoodSculp
   latestMood.current = mood;
   const say = useCallback((text: string, durationMs = MASCOT_SETTINGS.replyVisibleMs) => setBubble({ text, durationMs, id: ++bubbleSequence.current }), []);
 
-  // 原100条洗牌回复继续用于戳戳；新增接触动作有对应的短句和表情。
+  /** 过程反馈与松手反应分开：按住时就回应，但绝不打断Three里的持续抓取。 */
+  const contextualReply = useCallback((kind: MascotGesture) => {
+    const choices = MASCOT_GESTURE_REPLIES[kind];
+    const previous = contextIndex.current[kind];
+    let index = Math.floor(Math.random() * choices.length);
+    if (choices.length > 1 && index === previous) index = (index + 1) % choices.length;
+    contextIndex.current[kind] = index; say(choices[index]);
+  }, [say]);
+  const engage = useCallback((kind: MascotGesture) => {
+    if (reactionTimer.current) clearTimeout(reactionTimer.current);
+    setReaction(null); setExpression(MASCOT_GESTURE_EXPRESSIONS[kind]);
+    const now = performance.now();
+    if (now >= responseAfter.current) { contextualReply(kind); responseAfter.current = now + 1100; }
+  }, [contextualReply]);
+  /** 每次真实接触都有物理反应；短冷却只限文字，不吞掉快节奏的戳、抓、放。 */
   const react = useCallback((kind: MascotGesture, hit: MascotHit) => {
     const now = performance.now();
-    if (now < responseAfter.current) return;
-    responseAfter.current = now + MASCOT_INTERACTION_SETTINGS.gestureCooldownMs;
-    if (reactionTimer.current) clearTimeout(reactionTimer.current);
-    if (kind === 'poke') {
-      deckRef.current ??= createMascotDeck(MASCOT_REPLIES);
-      const next = deckRef.current.draw(); say(next.text); sceneRef.current?.play(next);
-    } else {
-      const choices = MASCOT_GESTURE_REPLIES[kind];
-      const previous = contextIndex.current[kind];
-      let index = Math.floor(Math.random() * choices.length);
-      if (choices.length > 1 && index === previous) index = (index + 1) % choices.length;
-      contextIndex.current[kind] = index; say(choices[index]);
-    }
     sceneRef.current?.react(kind, hit);
+    if (now >= responseAfter.current) {
+      if (kind === 'poke') {
+        deckRef.current ??= createMascotDeck(MASCOT_REPLIES);
+        const next = deckRef.current.draw(); say(next.text); sceneRef.current?.play(next);
+      } else contextualReply(kind);
+      responseAfter.current = now + MASCOT_INTERACTION_SETTINGS.gestureCooldownMs;
+    }
+    if (reactionTimer.current) clearTimeout(reactionTimer.current);
     setReaction(kind); setExpression(MASCOT_GESTURE_EXPRESSIONS[kind]);
     reactionTimer.current = setTimeout(() => { setReaction(null); setExpression(baseExpression(latestMood.current)); }, MASCOT_INTERACTION_SETTINGS.reactionResetMs);
-  }, [say]);
-  const controls = useMascotInteraction({ mode, ready, scene: sceneRef, host: hostRef, button: buttonRef, onReact: react });
+  }, [say, contextualReply]);
+  const controls = useMascotInteraction({ mode, ready, scene: sceneRef, host: hostRef, button: buttonRef, onReact: react, onEngage: engage });
 
   const setBounds = useCallback((bounds: MascotBounds) => {
     const target = buttonRef.current;
