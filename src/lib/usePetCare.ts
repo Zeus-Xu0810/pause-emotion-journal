@@ -80,6 +80,8 @@ export function usePetCare(options: PetCareOptions) {
     if (selected && !memory.current.sleeping && responseRef.current?.kind !== 'wake') latest.current.say(PET_ACTIVITY_HINTS[selected], INPUT.keyboardHintMs);
   }, [cancel, event]);
   const touch = useCallback((kind: MascotGesture, finished = false) => {
+    // Three可能已经在这一拍接触中唤醒；完成手势不能立刻清掉刚生成的伸展回应。
+    if (responseRef.current?.kind === 'wake') return true;
     if (kind === 'pat' && activityRef.current === 'sleep') { if (finished) event({ kind: 'soothe', at: performance.now() }); return finished; }
     if (memory.current.sleeping || responseRef.current?.kind === 'drowsy') { event({ kind: 'wake', at: performance.now() }); return true; }
     if (responseRef.current) { responseRef.current = null; setResponse(null); }

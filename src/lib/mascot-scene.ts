@@ -9,7 +9,7 @@ import { advanceMascotSpring, mascotSoftLimit, MASCOT_DYNAMICS as DYNAMICS } fro
 import type { MascotDeformation, MascotResidualField } from './mascot-deformation';
 import { createPetProps, PET_RENDER_SETTINGS as PET } from './pet-props';
 import type { PetPropRig } from './pet-props';
-import { clampPetPointer, petArcPoint, petTargetContains } from './pet-scene-math';
+import { clampPetPointer, petArcPoint, petSafeZoom, petTargetContains } from './pet-scene-math';
 import type { PetActivity, PetEventKind, PetInput, PetPoint, PetResponse } from './pet-care';
 
 /** 直接操纵的可修改输入集中在此；形变上限保持曲面连续，避免捏拉翻面。 */
@@ -105,7 +105,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     // 照顾状态只属于当前场景；同一时刻最多一个递送/回应，睡姿单独锁存。
     let petProps: PetPropRig | null = null; let petActivity: PetActivity | null = null;
     let petAction: { response: PetResponse; elapsed: number; start: THREE.Vector3 } | null = null;
-    let petResting: 'drowsy' | 'asleep' | null = null; let lastPetResponseId: number | null = null;
+    let petResting: 'drowsy' | 'asleep' | null = null;
+    let petWakeFrom: 'drowsy' | 'asleep' | null = null; let petReach = 0; let lastPetResponseId: number | null = null;
     let petAwaiting = false; let petDragging = false; let petPointer: PetPoint | null = null;
     let petLastPointer: PetPoint | null = null; let petTravel = 0;
     let petDelivery: { kind: 'bite' | 'catch'; elapsed: number; start: THREE.Vector3 } | null = null;
@@ -217,11 +218,13 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     }
     function petHomePoint(output: THREE.Vector3) {
       if (!petActivity) return output.setScalar(0);
-      const home = PET.home[petActivity]; output.set(home.x, home.y, home.z); return rig.localToWorld(output);
+      const home = PET.home[petActivity]; output.set(home.x, home.y, home.z);
+      // 点心托盘和静止小球落在脚边，不跟着身体被拖到空中；月亮仍跟随头部。
+      return petActivity === 'sleep' ? rig.localToWorld(output) : output;
     }
     function petDirectPoint(point: PetPoint, output: THREE.Vector3) {
       const object = petObject(); if (!object || !petActivity) return output;
-      const clamped = clampPetPointer(point, host.clientWidth, host.clientHeight, petRadiusPixels(object), PET.stagePaddingPx);
+      const clamped = clampPetPointer(point, host.clientWidth, host.clientHeight, Math.max(PET.minimumTargetRadiusPx, petRadiusPixels(object)), PET.stagePaddingPx);
       petHomePoint(petHome);
       petDragOrigin.copy(petActivity === 'sleep' ? petHome : petMouthWorld).addScaledVector(petCameraFront, petActivity === 'sleep' ? 0 : PET.dragPlaneClearance);
       petDragPlane.setFromNormalAndCoplanarPoint(petCameraFront, petDragOrigin);
@@ -270,6 +273,12 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       petAction = null; petResting = null;
       if (wasSleeping) emitPetEvent('wake');
     }
+    /** 小手先追上接触动作再慢慢收回，不能在回应首尾一帧跳到脸前。 */
+    function updatePetReach(delta: number) {
+      const eating = petAction?.response.kind === 'eat';
+      const target = eating ? 1 - THREE.MathUtils.smoothstep(petPhase(), 0.82, 1) : petActivity === 'feed' && (petDragging || petDelivery || petAwaiting) ? 1 : 0;
+      petReach += (target - petReach) * (reduced ? 1 : 1 - Math.exp(-14 * delta));
+    }
     function advancePet(delta: number) {
       if (petAction) {
         petAction.elapsed = Math.min(petAction.response.durationMs, petAction.elapsed + delta * 1000);
@@ -281,6 +290,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           const kind = petDelivery.kind; petDelivery = null; emitPetEvent(kind);
         }
       }
+      updatePetReach(delta);
     }
 
     /** 先叠加重心和短手姿态，再计算局部贴面；吃饭、玩球和睡觉互不叠播。 */
@@ -289,23 +299,23 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const kind = petAction?.response.kind; const phase = petPhase();
       const variant = Math.abs(Math.floor(petAction?.response.variant ?? 0)) % 3;
       const pulse = reduced ? 0.85 : Math.sin(Math.PI * phase);
-      const reach = kind === 'eat' || petActivity === 'feed' && (petDragging || petDelivery || petAwaiting);
-      if (reach) arms.forEach((arm, index) => { const side = index === 0 ? -1 : 1; arm.position.x = THREE.MathUtils.lerp(arm.position.x, side * 0.39, 0.8); arm.position.y -= 0.1; arm.position.z = PET.pose.feedingHandFront; arm.rotation.z = -side * 0.4; });
+      if (petReach > 0.001) arms.forEach((arm, index) => { const side = index === 0 ? -1 : 1; arm.position.x = THREE.MathUtils.lerp(arm.position.x, side * 0.39, petReach * 0.8); arm.position.y -= petReach * 0.1; arm.position.z = THREE.MathUtils.lerp(arm.position.z, PET.pose.feedingHandFront, petReach); arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, -side * 0.4, petReach); });
       if (kind === 'eat') { rig.rotation.x += (reduced ? 0.025 : Math.sin(phase * Math.PI * (PET.pose.chewCycles + variant % 2) * 2) * 0.025) * pulse; blushMaterial.opacity += 0.12 * pulse; }
       if (kind === 'full') {
         rig.rotation.y += reduced ? -0.07 : Math.sin(phase * Math.PI * (4 + variant)) * PET.pose.fullShake * pulse;
-        arms.forEach((arm, index) => { arm.position.set((index === 0 ? -1 : 1) * 0.43, -0.23, 0.78); arm.rotation.z = (index === 0 ? 1 : -1) * 0.5; });
+        arms.forEach((arm, index) => { arm.position.x = THREE.MathUtils.lerp(arm.position.x, (index === 0 ? -1 : 1) * 0.43, pulse); arm.position.y = THREE.MathUtils.lerp(arm.position.y, -0.23, pulse); arm.position.z = THREE.MathUtils.lerp(arm.position.z, 0.78, pulse); arm.rotation.z = THREE.MathUtils.lerp(arm.rotation.z, (index === 0 ? 1 : -1) * 0.5, pulse); });
         rig.scale.x *= 1 + pulse * 0.025;
       }
       if (petActivity === 'tease' && (petDragging || petDelivery || kind === 'play' || kind === 'excited')) {
-        const right = arms[1]; right.position.z = PET.pose.playingHandFront; right.position.y += 0.08; right.rotation.z += 0.35 + variant * 0.04;
+        const right = arms[1]; const reaching = petDragging || petDelivery ? 1 : pulse; right.position.z = THREE.MathUtils.lerp(right.position.z, PET.pose.playingHandFront, reaching); right.position.y += 0.08 * reaching; right.rotation.z += (0.35 + variant * 0.04) * reaching;
         if (!reduced) { rig.rotation.z += eyeLookX * 0.035; rig.rotation.y += eyeLookX * 0.045; }
         if (kind === 'excited' && !reduced) { rig.position.y += Math.abs(Math.sin(phase * Math.PI * 3)) * pulse * 0.075; feet.forEach((foot, index) => { foot.rotation.z += (index === 0 ? -1 : 1) * pulse * 0.12; }); }
       }
       if (kind === 'tired') { rig.rotation.x += 0.1 * pulse; arms.forEach(arm => { arm.rotation.z *= 0.4; }); }
-      if (petResting) {
-        const settle = petAction ? THREE.MathUtils.smoothstep(phase, 0, 0.8) : 1;
-        rig.rotation.z -= settle * (petResting === 'asleep' ? PET.pose.sleepTilt : PET.pose.sleepTilt * 0.46); rig.position.y -= settle * 0.025;
+      if (petResting || kind === 'wake' && petWakeFrom) {
+        const resting = petResting ?? petWakeFrom;
+        const settle = kind === 'wake' ? 1 - THREE.MathUtils.smoothstep(phase, 0, 0.4) : petAction ? THREE.MathUtils.smoothstep(phase, 0, 0.8) : 1;
+        rig.rotation.z -= settle * (resting === 'asleep' ? PET.pose.sleepTilt : PET.pose.sleepTilt * 0.46); rig.position.y -= settle * 0.025;
         arms.forEach((arm, index) => { arm.position.x = THREE.MathUtils.lerp(arm.position.x, (index === 0 ? -1 : 1) * 0.57, settle); arm.position.z = THREE.MathUtils.lerp(arm.position.z, PET.pose.foldedHandFront, settle); arm.rotation.z += (index === 0 ? -1 : 1) * settle * 0.38; });
       }
       if (kind === 'wake') { arms[0].rotation.z -= pulse * PET.pose.wakeStretch; arms[1].rotation.z += pulse * PET.pose.wakeStretch; rig.scale.y *= 1 + pulse * 0.055; rig.scale.x *= 1 - pulse * 0.025; }
@@ -338,7 +348,9 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         petArcPoint(petAction.start, petMouthReceive, Math.min(1, phase / 0.33), PET.deliveryArc * 0.5, object.position);
         const scale = 1 - THREE.MathUtils.smoothstep(phase, 0.25, 0.48); object.scale.setScalar(scale); object.visible = scale > 0.015;
       } else if (petAction && ['play', 'excited'].includes(petAction.response.kind)) {
-        petArcPoint(petAction.start, petHandReceive, Math.min(1, petPhase() / 0.28), PET.deliveryArc, object.position);
+        const phase = petPhase();
+        if (phase < 0.5) petArcPoint(petAction.start, petHandReceive, Math.min(1, phase / 0.28), PET.deliveryArc, object.position);
+        else petArcPoint(petHandReceive, petHome, (phase - 0.5) / 0.5, PET.deliveryArc * 0.6, object.position);
         object.rotation.z = reduced ? -0.15 : Math.sin(petPhase() * Math.PI * 3) * 0.25;
       } else if (!petAwaiting) {
         object.position.lerp(petHome, reduced || !delta ? 1 : 1 - Math.exp(-10 * delta));
@@ -394,7 +406,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       const family = response.kind === 'eat' || response.kind === 'full' ? 'feed' : ['play', 'excited', 'tired'].includes(response.kind) ? 'tease' : response.kind === 'drowsy' || response.kind === 'asleep' ? 'sleep' : null;
       if (family && family !== petActivity) return;
       lastPetResponseId = response.id; pausePetTimer(); petDragging = false; petPointer = null; petDelivery = null;
-      if (response.kind === 'wake') petResting = null;
+      if (response.kind === 'wake') { petWakeFrom = petResting; petResting = null; }
       else if (response.kind === 'asleep' || response.kind === 'drowsy') petResting = response.kind;
       else petResting = null;
       if (held && !petSoothing(held.kind, held.hit)) { petAction = null; return; }
@@ -439,6 +451,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           else if (petAction?.response.kind === 'eat') eyes[index].scale.y *= 0.78;
           else if (petAction?.response.kind === 'full' || petAction?.response.kind === 'tired') eyes[index].scale.y *= 0.65;
           else if (petAction?.response.kind === 'excited') eyes[index].scale.y *= 1.12;
+          else if (petAction?.response.kind === 'wake' && petWakeFrom) eyes[index].scale.y *= THREE.MathUtils.lerp(petWakeFrom === 'asleep' ? 0.045 : 0.3, 1, THREE.MathUtils.smoothstep(petPhase(), 0, 0.35));
         }
       }
     }
@@ -624,11 +637,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
         const object = petProps.objects[petActivity];
         if (object.visible) {
           petProjection.copy(object.position).project(camera);
-          const propRadius = petActivity === 'feed' ? 0.28 : PET.radius[petActivity];
-          const radiusX = propRadius * camera.zoom / camera.right;
-          const radiusY = propRadius * camera.zoom / camera.top;
-          const extent = Math.max(Math.abs(petProjection.x) + radiusX, Math.abs(petProjection.y) + radiusY);
-          if (extent > 0.92) targetZoom = Math.min(targetZoom, camera.zoom * 0.92 / extent);
+          targetZoom = petSafeZoom({ x: petProjection.x, y: petProjection.y, zoom: camera.zoom, base: targetZoom, halfWidth: camera.right, halfHeight: camera.top, width: host.clientWidth, height: host.clientHeight, worldRadius: petActivity === 'feed' ? 0.28 : PET.radius[petActivity], hitRadius: PET.minimumTargetRadiusPx });
         }
       }
       const zoom = reduced || delta === 0 ? targetZoom : camera.zoom + (targetZoom - camera.zoom) * (1 - Math.exp(-12 * delta));
@@ -636,7 +645,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     }
     function renderDirect() {
       if (disposed || !bodyGeometry) return;
-      pose(0, null); applyPhysicalPose(); updatePetProps(); updateEyes(1); fitCamera(); updatePetProps(); draw();
+      pose(0, null); if (reduced) updatePetReach(1); applyPhysicalPose(); updatePetProps(); updateEyes(1); fitCamera(); updatePetProps(); draw();
     }
 
     function animate(now: number) {

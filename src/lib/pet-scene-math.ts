@@ -24,3 +24,15 @@ export function petArcPoint(start: PetWorldPoint, end: PetWorldPoint, progress: 
   output.z = start.z + (end.z - start.z) * eased;
   return output;
 }
+
+
+/** 相同世界位置在不同当前zoom下得到相同目标，避免边缘道具让镜头反复缩放。 */
+export function petSafeZoom(input: { x: number; y: number; zoom: number; base: number; halfWidth: number; halfHeight: number; width: number; height: number; worldRadius: number; hitRadius: number }): number {
+  const baseX = Math.abs(input.x) / Math.max(0.001, input.zoom);
+  const baseY = Math.abs(input.y) / Math.max(0.001, input.zoom);
+  const visualX = 0.96 / Math.max(0.001, baseX + input.worldRadius / input.halfWidth);
+  const visualY = 0.96 / Math.max(0.001, baseY + input.worldRadius / input.halfHeight);
+  const hitX = Math.max(0.1, 1 - input.hitRadius * 2 / Math.max(1, input.width)) / Math.max(0.001, baseX);
+  const hitY = Math.max(0.1, 1 - input.hitRadius * 2 / Math.max(1, input.height)) / Math.max(0.001, baseY);
+  return Math.max(0.15, Math.min(input.base, visualX, visualY, hitX, hitY));
+}

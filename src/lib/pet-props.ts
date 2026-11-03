@@ -4,11 +4,11 @@ import type { PetActivity } from './pet-care';
 /** 照顾玩法的尺寸、路径、接触范围和静态姿态参数集中在此。 */
 export const PET_RENDER_SETTINGS = {
   radius: { feed: 0.14, tease: 0.16, sleep: 0.23 },
-  home: { feed: { x: -0.9, y: -0.48, z: 1.2 }, tease: { x: 0.98, y: -0.34, z: 1.2 }, sleep: { x: 0.88, y: 0.62, z: 1.05 } },
+  home: { feed: { x: -0.9, y: -0.87, z: 1.2 }, tease: { x: 0.98, y: -0.85, z: 1.2 }, sleep: { x: 0.88, y: 0.62, z: 1.05 } },
   mouthClearance: 0.23, handClearance: 0.31, dragPlaneClearance: 0.68,
   mouthReach: 0.3, handReach: 0.34,
   deliverySeconds: 0.48, deliveryArc: 0.19,
-  stagePaddingPx: 12, minimumTargetRadiusPx: 18,
+  stagePaddingPx: 12, minimumTargetRadiusPx: 22,
   sootheTravelPx: 12, moonTravel: 0.23,
   staticResponsePhase: 0.58,
   pose: { foldedHandFront: 0.72, feedingHandFront: 0.8, playingHandFront: 0.65, sleepTilt: 0.12, chewCycles: 5, fullShake: 0.12, wakeStretch: 0.85 },

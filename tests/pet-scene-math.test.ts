@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { clampPetPointer, petArcPoint, petTargetContains } from '../src/lib/pet-scene-math.ts';
+import { clampPetPointer, petArcPoint, petSafeZoom, petTargetContains } from '../src/lib/pet-scene-math.ts';
 
 /** 覆盖短屏和宽屏的真实CSS尺寸，确保道具中心加半径后仍留在可见舞台。 */
 test('道具拖动边界按CSS像素留白，窄舞台及非法指针仍有限', () => {
@@ -32,4 +32,15 @@ test('自动递送路径首尾准确，始终处于两端前后深度范围且�
     assert.ok(point.z >= end.z && point.z <= start.z);
     assert.ok(point.x >= start.x && point.x <= end.x);
   }
+});
+
+
+test('道具边缘取景与当前zoom无关，并为44像素触控区保留完整舞台空间', () => {
+  const base = { base: 1, halfWidth: 1.4, halfHeight: 1.2, width: 390, height: 180, worldRadius: 0.28, hitRadius: 22 };
+  const first = petSafeZoom({ ...base, x: 0.7, y: -0.87, zoom: 1 });
+  const second = petSafeZoom({ ...base, x: 0.7 * 0.8, y: -0.87 * 0.8, zoom: 0.8 });
+  assert.ok(Math.abs(first - second) < 0.00001, '同一物体不能让镜头在两种zoom来回跳');
+  const pixelY = (1 + 0.87 * first) * base.height / 2;
+  assert.ok(pixelY + base.hitRadius <= base.height + 0.001);
+  assert.ok(first > 0.5 && first <= 1);
 });
