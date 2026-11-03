@@ -1,0 +1,73 @@
+/* 回看页的纸色、边线和邮票尺寸集中设置；沿用全站圆体与文字颜色。 */
+.journal-shelf {
+  --journal-paper: #fffef9;
+  --journal-paper-line: #e7e8dc;
+  --journal-stamp-size: 70px;
+  --journal-item-space: 28px;
+}
+
+/* 时间线是一叠轻薄纸页，只在左侧留下装订线，不添加多重卡片。 */
+.journal-shelf .entry-list { border-top: 1px solid var(--journal-paper-line); }
+.journal-shelf .entry-item { position: relative; gap: 23px; padding-block: var(--journal-item-space); border-color: var(--journal-paper-line); }
+.journal-shelf .entry-date { position: relative; padding-top: 3px; line-height: 1.65; }
+.journal-shelf .entry-date strong { font-size: 34px; font-weight: 600; line-height: 1.35; }
+.journal-shelf .entry-date::after { content: ''; position: absolute; right: -13px; top: 12px; bottom: -12px; width: 1px; background: var(--journal-paper-line); }
+.journal-shelf .entry-disclosure { padding: 3px 0 0; }
+.journal-shelf .entry-summary { flex-wrap: nowrap; align-items: flex-start; gap: 17px; border-radius: 8px; }
+.journal-shelf .entry-summary:focus-visible { outline: 2px solid #94b7a2; outline-offset: 7px; }
+.journal-shelf .journal-entry-stamp { display: block; flex: 0 0 var(--journal-stamp-size); width: var(--journal-stamp-size); height: var(--journal-stamp-size); margin-top: 1px; transform: rotate(-5deg); transition: transform 180ms ease; }
+.journal-shelf .entry-summary:hover .journal-entry-stamp, .journal-shelf .entry-disclosure[open] .journal-entry-stamp { transform: rotate(0deg) translateY(-2px); }
+.journal-shelf .entry-mood { margin: 0 0 5px; }
+.journal-shelf .entry-mood h2 { font-size: 21px; font-weight: 600; line-height: 1.6; }
+.journal-shelf .entry-preview { font-size: 19px; line-height: 1.8; }
+.journal-shelf .entry-chevron { flex: 0 0 17px; margin-top: 14px; }
+.journal-shelf .entry-tags { gap: 7px; }
+.journal-shelf .entry-tags span { border: 1px solid transparent; padding: 3px 10px; line-height: 1.5; }
+.journal-shelf .entry-tags .is-feeling { background: #edf2e9; color: #647c66; }
+.journal-shelf .entry-tags .is-context { background: #f6f0e7; color: #8d7b62; }
+.journal-shelf .entry-preview-tags { margin-top: 10px; }
+.journal-shelf .entry-disclosure[open] .entry-preview-tags { display: none; }
+.journal-shelf .entry-detail { margin: 16px 0 0 calc(var(--journal-stamp-size) + 17px); padding-top: 15px; border-top: 1px dashed var(--journal-paper-line); }
+.journal-shelf .entry-detail-actions { gap: 16px; margin-top: 15px; }
+.journal-shelf .entry-detail-actions button:last-child:hover { color: var(--danger); }
+
+/* 空状态是一只团子捧着小纸片；装饰不承担按钮或记录状态。 */
+.journal-shelf .journal-shelf-empty { min-height: 350px; padding-top: 27px; }
+.journal-shelf .journal-empty-paper { position: relative; width: 194px; height: 142px; margin: 0 0 22px; isolation: isolate; }
+.journal-shelf .journal-empty-paper::before { content: ''; position: absolute; z-index: -1; inset: 26px 24px 0; border: 1px solid var(--journal-paper-line); border-radius: 7px 7px 16px 7px; background: var(--journal-paper); box-shadow: 2px 5px 0 #e8ebe143; transform: rotate(-6deg); }
+.journal-shelf .journal-empty-stamp { display: block; width: 117px; height: 117px; margin: 0 auto; transform: rotate(5deg); }
+.journal-shelf .journal-paper-line { position: absolute; bottom: 23px; left: 51px; width: 68px; height: 1px; background: #dce3d7; box-shadow: 0 8px 0 #e5e8de; transform: rotate(-6deg); }
+.journal-shelf .journal-paper-feather { position: absolute; right: 33px; bottom: 18px; color: #8da38e; transform: rotate(13deg); }
+.journal-shelf .journal-shelf-empty h2 { max-width: 410px; margin-bottom: 25px; font-size: 24px; font-weight: 500; line-height: 1.8; }
+.journal-shelf .journal-shelf-empty .primary-button { min-height: 52px; }
+
+/* 月历延续同一纸色与线条，记录数量和日期选择逻辑保持原样。 */
+.journal-shelf .calendar-panel { padding-top: 4px; }
+.journal-shelf .calendar-cell { background: #f0f3eb70; border-color: #e4e9de70; }
+.journal-shelf .calendar-cell:hover { background: #eaf0e5; }
+.journal-shelf .calendar-cell.is-selected { border-color: #a8bea3; background: #e4eddd; }
+.journal-shelf .calendar-cell.has-entry { background: var(--journal-paper); }
+.journal-shelf .calendar-cell.has-entry.is-selected { background: #e4eddd; }
+
+/* 手机保留18px正文与可触碰控件，短摘要和邮票共同控制横向占用。 */
+@media (max-width: 600px) {
+  .journal-shelf { --journal-stamp-size: 51px; --journal-item-space: 24px; }
+  .journal-shelf .entry-item { grid-template-columns: 43px minmax(0, 1fr); gap: 16px; }
+  .journal-shelf .entry-date { font-size: 14px; }
+  .journal-shelf .entry-date strong { font-size: 31px; }
+  .journal-shelf .entry-date::after { right: -8px; }
+  .journal-shelf .entry-summary { gap: 10px; }
+  .journal-shelf .entry-mood h2, .journal-shelf .entry-preview, .journal-shelf .entry-text { font-size: 18px; }
+  .journal-shelf .entry-preview { -webkit-line-clamp: 3; }
+  .journal-shelf .entry-tags { gap: 5px; }
+  .journal-shelf .entry-tags span { padding: 3px 8px; font-size: 15px; }
+  .journal-shelf .entry-detail { margin-left: 0; }
+  .journal-shelf .entry-chevron { flex-basis: 15px; margin-top: 8px; }
+  .journal-shelf .journal-shelf-empty h2 { max-width: 285px; font-size: 23px; }
+}
+
+/* 低动态模式保留邮票和内容，仅取消装饰性的悬停摆动。 */
+@media (prefers-reduced-motion: reduce) {
+  .journal-shelf .journal-entry-stamp { transition: none; }
+  .journal-shelf .entry-summary:hover .journal-entry-stamp, .journal-shelf .entry-disclosure[open] .journal-entry-stamp { transform: rotate(-5deg); }
+}

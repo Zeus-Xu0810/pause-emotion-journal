@@ -4,7 +4,12 @@ import { CalendarDays, List, Pencil, Trash2, ChevronDown, ChevronLeft, ChevronRi
 import { CONTEXTS, MOODS } from '../config';
 import { dayKey, moodMeta } from '../lib/domain';
 import { filterJournalEntries, journalFilterCount, journalMonth, parseJournalFilters } from '../lib/journal-filters';
+import JournalStamp from '../components/JournalStamp';
 import type { MoodEntry } from '../types';
+import '../journal-shelf.css';
+
+/** 折叠状态只露出少量真实标签；展开后仍可查看用户保存的全部内容。 */
+const JOURNAL_SHELF = { previewFeelings: 2, previewContexts: 1 };
 
 /** 日记先呈现日期、心情与短记，筛选和操作按需展开。 */
 export default function JournalView({ entries, onEdit, onDelete, onCreate }: { entries: MoodEntry[]; onEdit: (entry: MoodEntry) => void; onDelete: (entry: MoodEntry) => void; onCreate: () => void }) {
@@ -25,7 +30,7 @@ export default function JournalView({ entries, onEdit, onDelete, onCreate }: { e
   const days = Array.from({ length: 42 }, (_, i) => { const day = new Date(first); day.setDate(day.getDate() + i); return day; });
   const changeMonth = (offset: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + offset, 1));
 
-  return <section className="journal-view">
+  return <section className="journal-view journal-shelf">
     {/* 视图切换常驻，筛选收起时仍能看见当前筛选数量。 */}
     <div className="journal-toolbar">
       <button className={`filter-toggle ${filtersOpen ? 'is-active' : ''}`} aria-expanded={filtersOpen} aria-controls="journal-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={16} />筛选{filterCount > 0 && <span className="filter-count">{filterCount}</span>}</button>
@@ -45,14 +50,30 @@ export default function JournalView({ entries, onEdit, onDelete, onCreate }: { e
       return <button className={`calendar-cell ${day.getMonth() !== month.getMonth() ? 'is-outside' : ''} ${matches.length ? 'has-entry' : ''} ${date === key ? 'is-selected' : ''}`} aria-label={`${key}，${matches.length}条记录`} aria-pressed={date === key} key={key} onClick={() => filter('date', date === key ? '' : key)}><span>{day.getDate()}</span><span className="calendar-dots">{matches.slice(0, 4).map(entry => <i key={entry.id} style={{ background: moodMeta(entry.mood).color }} />)}</span></button>;
     })}</div></section>}
     <div className="section-heading"><p>{date ? `${date} · ` : from || to ? `${from || '最早'} — ${to || '至今'} · ` : ''}{filtered.length} 个片刻</p><button className="text-button" onClick={onCreate}><Feather size={15} />记一笔</button></div>
-    {filtered.length === 0 ? <div className="empty-state"><Feather size={32} strokeWidth={1.2} /><h2>{entries.length ? '没有匹配的片刻' : '从此刻开始'}</h2><button className="primary-button" onClick={entries.length ? () => setParams({}) : onCreate}>{entries.length ? '清除筛选' : '记一笔'}</button></div> : <div className="entry-list">{[...filtered].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).map(entry => {
+    {/* 空白纸片仅作装饰，不预置示例记录；有筛选时明确区分“无匹配”和“尚未记录”。 */}
+    {filtered.length === 0 ? <div className="empty-state journal-shelf-empty">
+      <div className="journal-empty-paper" aria-hidden="true"><JournalStamp className="journal-empty-stamp" /><span className="journal-paper-line" /><Feather className="journal-paper-feather" size={27} strokeWidth={1.3} /></div>
+      <h2>{entries.length ? '没有匹配的片刻' : '每一种心情，都可以放在这里'}</h2>
+      <button className="primary-button" onClick={entries.length ? () => setParams({}) : onCreate}>{entries.length ? '清除筛选' : '记一笔'}</button>
+    </div> : <div className="entry-list">{[...filtered].sort((a, b) => b.occurredAt.localeCompare(a.occurredAt)).map(entry => {
       const when = new Date(entry.occurredAt);
       const meta = moodMeta(entry.mood);
+      const previewFeelings = entry.feelings.slice(0, JOURNAL_SHELF.previewFeelings);
+      const previewContexts = entry.contexts.slice(0, JOURNAL_SHELF.previewContexts);
       return <article className="entry-item" key={entry.id}>
         <time className="entry-date" dateTime={entry.occurredAt}><span>{when.getMonth() + 1}月</span><strong>{when.getDate()}</strong><span>{when.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span></time>
         <details className="entry-disclosure">
-          <summary className="entry-summary"><div className="entry-summary-copy"><div className="entry-mood"><span className="day-dot" style={{ background: meta.color }} /><h2>{meta.label}</h2></div><p className="entry-text entry-preview">{entry.note || '只记了心情'}</p></div><ChevronDown size={17} className="entry-chevron" aria-hidden="true" /></summary>
-          <div className="entry-detail"><p className="entry-text">{entry.note || '只记了心情'}</p>{(entry.feelings.length > 0 || entry.contexts.length > 0) && <div className="entry-tags">{entry.feelings.map(item => <span key={`feeling-${item}`}>{item}</span>)}{entry.contexts.map(item => <span key={`context-${item}`}>{item}</span>)}</div>}<div className="entry-detail-actions"><button className="text-button" aria-label={`编辑${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onEdit(entry)}><Pencil size={15} />编辑</button><button className="text-button" aria-label={`删除${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onDelete(entry)}><Trash2 size={15} />删除</button></div></div>
+          <summary className="entry-summary">
+            <JournalStamp mood={entry.mood} className="journal-entry-stamp" />
+            <div className="entry-summary-copy">
+              <div className="entry-mood"><h2>{meta.label}</h2></div>
+              {(entry.note || entry.feelings.length === 0) && <p className="entry-text entry-preview">{entry.note || '只记了心情'}</p>}
+              {/* 摘要只显示已选感受与情境，不根据分数推测或生成心理结论。 */}
+              {(previewFeelings.length > 0 || previewContexts.length > 0) && <div className="entry-tags entry-preview-tags">{previewFeelings.map(item => <span className="is-feeling" key={`feeling-${item}`}>{item}</span>)}{previewContexts.map(item => <span className="is-context" key={`context-${item}`}>{item}</span>)}</div>}
+            </div>
+            <ChevronDown size={17} className="entry-chevron" aria-hidden="true" />
+          </summary>
+          <div className="entry-detail"><p className="entry-text">{entry.note || '只记了心情'}</p>{(entry.feelings.length > 0 || entry.contexts.length > 0) && <div className="entry-tags">{entry.feelings.map(item => <span className="is-feeling" key={`feeling-${item}`}>{item}</span>)}{entry.contexts.map(item => <span className="is-context" key={`context-${item}`}>{item}</span>)}</div>}<div className="entry-detail-actions"><button className="text-button" aria-label={`编辑${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onEdit(entry)}><Pencil size={15} />编辑</button><button className="text-button" aria-label={`删除${when.toLocaleDateString('zh-CN')}的记录`} onClick={() => onDelete(entry)}><Trash2 size={15} />删除</button></div></div>
         </details>
       </article>;
     })}</div>}
