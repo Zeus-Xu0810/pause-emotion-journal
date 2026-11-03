@@ -9,6 +9,9 @@
   --mascot-follow-time: 38ms;
   --mascot-hang-time: 690ms;
   --mascot-limb-return: 780ms;
+  --mascot-breath-time: 4100ms;
+  --mascot-blink-time: 7600ms;
+  --mascot-idle-hand-time: 12300ms;
   --mascot-face-ink: #33473d;
   --mascot-blush: #dba79e;
   position: relative;
@@ -143,6 +146,14 @@
 @keyframes mascot-spark { 0%, 100% { opacity: 0; transform: scale(.7); } 35%, 60% { opacity: .8; transform: scale(1.1); } }
 @keyframes mascot-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 18% { transform: translateY(2%) scale(1.08, .91); } 43% { transform: translateY(-8%) scale(.96, 1.05); } 67% { transform: translateY(0) scale(1.045, .96); } 84% { transform: scale(.985, 1.015); } }
 
+/* 闲时只做不到百分之一的呼吸、小幅手动与短眨眼，不摇晃整座舞台或持续抢注意。 */
+.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-fallback-breath { transform-origin: 50% 95%; animation: mascot-soft-breath var(--mascot-breath-time) ease-in-out infinite; }
+.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-static-lid { transform-origin: 50% 50%; animation: mascot-natural-blink var(--mascot-blink-time) linear infinite; }
+.mascot-fallback[data-gesture='idle'][data-reaction='idle'] .mascot-static-hand.right { animation: mascot-idle-hand var(--mascot-idle-hand-time) ease-in-out infinite; }
+@keyframes mascot-soft-breath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.006, 1.009); } }
+@keyframes mascot-natural-blink { 0%, 42%, 46%, 81%, 85%, 100% { transform: scaleY(1); } 43.5%, 44% { transform: scaleY(.08); } 82.5%, 83% { transform: scaleY(.08); } }
+@keyframes mascot-idle-hand { 0%, 58%, 73%, 100% { transform: rotate(0deg); } 62% { transform: rotate(-9deg) translateY(-3%); } 66% { transform: rotate(-5deg) translateY(-2%); } 69% { transform: rotate(-10deg) translateY(-3%); } }
+
 /* 手机工具保持40px命中高，但只占36px布局槽，原首屏保存位置不变。 */
 @media (max-width: 640px) {
   .mood-sculpture { --mascot-tool-hit: 40px; --mascot-tool-gap: 2px; }
@@ -154,7 +165,11 @@
 
 /* 系统和组件内的减少动态偏好均生效，直接拖动仍保留必要位置反馈。 */
 .mascot-fallback.is-reduced *, .mascot-fallback.is-reduced *::after { animation: none !important; transition: none !important; }
+.mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
+.mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
 @media (prefers-reduced-motion: reduce) {
   .mood-sculpture-canvas canvas, .mascot-reply, .mascot-fallback *, .mascot-fallback *::after { animation: none !important; transition: none !important; }
+  .mascot-fallback[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
+  .mascot-fallback[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
   .mascot-reply { transform: none; }
 }

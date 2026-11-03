@@ -100,7 +100,10 @@ interface MascotFallbackProps {
 /** CSS后备只消费同一套交互意图，不增加日志、不保存数据、不自行安装手势监听。 */
 export default function MascotFallback({ mood, expression, gaze, interaction, reaction, reduced }: MascotFallbackProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const gripRef = useRef<MascotHit['local'] | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  // 松手仍保留最后抓点作为回弹轴，避免旋转中心突然跳回肚子造成位置顿挫。
+  useEffect(() => { if (interaction?.kind === 'drag') gripRef.current = interaction.hit.local; }, [interaction]);
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
@@ -120,6 +123,7 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
   const isPinch = kind === 'pinch';
   const isDrag = kind === 'drag';
   const isPat = kind === 'pat';
+  const grip = isDrag ? interaction?.hit.local : gripRef.current;
   const side = interaction?.hit.region === 'cheek-left' ? 'left' : interaction?.hit.region === 'cheek-right' ? 'right' : null;
   const pullX = clamp((interaction?.dx ?? 0) * size.width / 2, -frame.width * FALLBACK.cheekTravel, frame.width * FALLBACK.cheekTravel);
   const pullY = clamp((interaction?.dy ?? 0) * size.height / 2, -frame.height * FALLBACK.cheekTravel, frame.height * FALLBACK.cheekTravel);
@@ -147,8 +151,8 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
     '--fb-drag-x': `${dragX}px`,
     '--fb-drag-y': `${dragY}px`,
     '--fb-drag-tilt': `${isDrag ? clamp(dragX * FALLBACK.dragTiltPerPixel, -FALLBACK.dragTilt, FALLBACK.dragTilt) : 0}deg`,
-    '--fb-grip-x': `${clamp(50 + (interaction?.hit.local.x ?? 0) / 1.94 * 100, 15, 85)}%`,
-    '--fb-grip-y': `${clamp(50 - (interaction?.hit.local.y ?? 0) / 1.92 * 100, 12, 88)}%`,
+    '--fb-grip-x': `${clamp(50 + (grip?.x ?? 0) / 1.94 * 100, 15, 85)}%`,
+    '--fb-grip-y': `${clamp(50 - (grip?.y ?? 0) / 1.92 * 100, 12, 88)}%`,
     '--fb-body-x': kind === 'poke' ? 1 + strength * 0.045 : isDrag ? 1 - strength * FALLBACK.dragStretch * 0.55 : isPat ? 1 + strength * 0.025 : 1,
     '--fb-body-y': kind === 'poke' ? 1 - strength * 0.055 : isDrag ? 1 + strength * FALLBACK.dragStretch : isPat ? 1 - strength * 0.03 : 1,
     '--fb-shadow-scale': isDrag ? 1 - strength * 0.2 : 1,
