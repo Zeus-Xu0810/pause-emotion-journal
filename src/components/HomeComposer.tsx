@@ -15,6 +15,7 @@ interface HomeComposerProps {
   setForm: (form: ComposerState) => void;
   editing: MoodEntry | null;
   busy: boolean;
+  startExpanded?: boolean;
   onSave: () => Promise<boolean>;
   onCancel: () => void;
   onKeepNew: () => void;
@@ -22,8 +23,9 @@ interface HomeComposerProps {
 }
 
 /** 首屏保留快速记录；主动展开后用贴纸和纸条补充，不强迫打字。 */
-export default function HomeComposer({ form, setForm, editing, busy, onSave, onCancel, onKeepNew, onLoadLatest }: HomeComposerProps) {
-  const [expanded, setExpanded] = useState(false);
+export default function HomeComposer({ form, setForm, editing, busy, startExpanded = false, onSave, onCancel, onKeepNew, onLoadLatest }: HomeComposerProps) {
+  // 从日记页“记一笔”进入时直接打开小纸条，仍不自动唤出键盘。
+  const [expanded, setExpanded] = useState(startExpanded || Boolean(editing));
   const [saved, setSaved] = useState(false);
   const [receiptMood, setReceiptMood] = useState<MoodScore | null>(null);
   const saving = useRef(false);
