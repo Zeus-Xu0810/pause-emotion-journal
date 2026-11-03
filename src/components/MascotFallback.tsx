@@ -44,7 +44,6 @@ const FALLBACK = {
     moonAlertSeconds: 0.9,
     mealRegrowStart: 0.93,
     moonTravel: 0.27,
-    maxFrameSeconds: 0.035,
     feed: { x: 1.06, y: 0.77 },
     tease: { x: 1.1, y: 0.58 },
     sleep: { x: 0.96, y: 0.15 },
@@ -336,7 +335,8 @@ function useFallbackCare(options: FallbackCareOptions) {
     };
     const tick = (at: number) => {
       frameId = 0; if (document.hidden || !visible) { lastAt = null; return; }
-      const delta = lastAt === null ? 0 : Math.min(FALLBACK.care.maxFrameSeconds, Math.max(0, (at - lastAt) / 1000)); lastAt = at;
+      // 表演阶段按实际可见时间推进；物理内部自行小步积分，低帧率不能拖长吃饭锁定。
+      const delta = lastAt === null ? 0 : Math.max(0, (at - lastAt) / 1000); lastAt = at;
       if (motion.current) advance(motion.current, delta);
       paint(); measure(); if (activity) frameId = requestAnimationFrame(tick);
     };
