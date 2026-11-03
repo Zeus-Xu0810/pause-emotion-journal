@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react';
 import { MASCOT_SETTINGS, type MascotExpression } from '../mascot-content';
 import type { MoodScore } from '../types';
 import type { MascotBounds, MascotGesture, MascotHit, MascotManipulation, MascotPoint } from '../lib/mascot-interaction-types';
-import type { PetActivity, PetInput, PetPoint, PetResponse, PetTargets } from '../lib/pet-care';
+import type { PetActivity, PetEvent, PetEventKind, PetInput, PetPoint, PetPropPhase, PetResponse, PetTargets } from '../lib/pet-care';
+import { advancePetFlight, createPetFlight, isPetFlightResting, PET_FLIGHT_SETTINGS, sweptPetCatch, type PetFlight } from '../lib/pet-flight';
 
 /** 后备团子的形状、命中区域和动作范围集中设置，绘制与命中共用同一份几何。 */
 const FALLBACK = {
@@ -25,10 +26,22 @@ const FALLBACK = {
     propMinSize: 36,
     propMaxSize: 58,
     homeInset: 8,
-    resetDelayMs: 240,
     responseMinMs: 700,
     responseMaxMs: 2400,
     targetTolerance: 0.35,
+    handHoldSeconds: 0.22,
+    handToMouthSeconds: 0.44,
+    keyboardFlightSeconds: 0.5,
+    throwBackX: 0.82,
+    throwBackY: -0.85,
+    handReachPx: 20,
+    mouthReachPx: 15,
+    catchGraceSeconds: 0.24,
+    sleepMinimumMs: 320,
+    sleepTravel: 0.16,
+    sleepMaximumSpeed: 1.25,
+    moonTravel: 0.27,
+    maxFrameSeconds: 0.035,
     feed: { x: 1.06, y: 0.77 },
     tease: { x: 1.1, y: 0.58 },
     sleep: { x: 0.96, y: 0.15 },
@@ -112,6 +125,7 @@ interface MascotFallbackProps {
   activity?: PetActivity | null;
   response?: PetResponse | null;
   onPetTargets?: (targets: PetTargets) => void;
+  onPetEvent?: (event: PetEvent) => PetResponse | null;
   petInput?: PetInput | null;
 }
 
@@ -122,20 +136,223 @@ function PetProp({ activity }: { activity: PetActivity }) {
   return <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M43 8C17 6 4 35 21 50c14 13 34 5 38-9C36 48 22 24 43 8Z" fill="#e5d5a5" stroke="#c5b380" strokeWidth="1.5" strokeLinejoin="round" /><path d="m48 12 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" fill="#c5b380" /><circle cx="17" cy="13" r="2" fill="#c5b380" /></svg>;
 }
 
+type ElementRef<T extends HTMLElement> = RefObject<T | null>;
+type CareHand = 'left' | 'right';
+interface CareMotion {
+  activity: PetActivity; phase: PetPropPhase; flight: PetFlight; scale: number; eligible: boolean;
+  stage: 'hand' | 'mouth' | 'eat' | 'ball' | 'wake' | null;
+  elapsed: number; duration: number; clock: number; ignoreUntil: number; responseId: number | null;
+  hand: CareHand; from: PetPoint; grip: { at: number; point: PetPoint; travel: number } | null;
+}
+interface FallbackCareOptions {
+  root: ElementRef<HTMLDivElement>; mouth: ElementRef<HTMLSpanElement>;
+  leftHand: ElementRef<HTMLElement>; rightHand: ElementRef<HTMLElement>; prop: ElementRef<HTMLSpanElement>;
+  activity: PetActivity | null; response: PetResponse | null; input: PetInput | null;
+  width: number; height: number; home: PetPoint; propSize: number; reduced: boolean;
+  onTargets?: (targets: PetTargets) => void; onEvent?: (event: PetEvent) => PetResponse | null;
+}
+
+/** 后备道具保留连续位置和速度；React只更新少量阶段，逐帧运动直接写CSS变量。 */
+function useFallbackCare(options: FallbackCareOptions) {
+  const latest = useRef(options); latest.current = options;
+  const motion = useRef<CareMotion | null>(null);
+  const seenInput = useRef<PetInput | null>(null);
+  const controller = useRef<{ input: (input: PetInput) => void; respond: (response: PetResponse) => void } | null>(null);
+  const [phase, setPhase] = useState<PetPropPhase>('ready');
+  const [hand, setHand] = useState<CareHand>('right');
+
+  useLayoutEffect(() => {
+    const root = options.root.current;
+    if (!root || !options.width || !options.height) return;
+    const { width, height, propSize, activity } = options;
+    const home = { x: options.home.x / width * 2 - 1, y: options.home.y / height * 2 - 1 };
+    const radius = { x: (propSize + FALLBACK.care.homeInset * 2) / width, y: (propSize + FALLBACK.care.homeInset * 2) / height };
+    const previous = motion.current;
+    const changedActivity = previous?.activity !== activity;
+    if (!activity) motion.current = null;
+    else if (changedActivity) motion.current = { activity, phase: 'ready', flight: createPetFlight(home, { x: 0, y: 0 }), scale: 1, eligible: false, stage: null, elapsed: 0, duration: 0, clock: 0, ignoreUntil: 0, responseId: null, hand: 'right', from: home, grip: null };
+    if (changedActivity) { seenInput.current = options.input; setPhase('ready'); setHand('right'); }
+    let frameId = 0; let lastAt: number | null = null; let visible = true; let lastTargets: PetTargets | null = null;
+
+    // 嘴与左右手由可见DOM提供锚点，揉脸、摸头、接物时都沿真实姿态测量。
+    const anchors = () => {
+      const rect = root.getBoundingClientRect();
+      const point = (element: HTMLElement | null): PetPoint => {
+        const box = element?.getBoundingClientRect();
+        return box ? { x: (box.left + box.width / 2 - rect.left) / width * 2 - 1, y: (box.top + box.height / 2 - rect.top) / height * 2 - 1 } : { x: 0, y: 0 };
+      };
+      return { mouth: point(latest.current.mouth.current), left: point(latest.current.leftHand.current), right: point(latest.current.rightHand.current) };
+    };
+    const pixels = (point: PetPoint): PetPoint => ({ x: (point.x + 1) * width / 2, y: (point.y + 1) * height / 2 });
+    const setPosition = (state: CareMotion, point: PetPoint) => { state.flight.x = clamp(point.x, -1 + radius.x, 1 - radius.x); state.flight.y = clamp(point.y, -1 + radius.y, 1 - radius.y); };
+    // 同一玩法改尺寸保留原位置、速度与阶段，仅将边缘位置钳回新的可见范围。
+    if (motion.current) setPosition(motion.current, motion.current.flight);
+    const setMotionPhase = (state: CareMotion, next: PetPropPhase) => { if (state.phase === next) return; state.phase = next; root.dataset.petPhase = next; setPhase(next); };
+    const chooseHand = (state: CareMotion, side: CareHand) => { state.hand = side; root.dataset.petHand = side; setHand(side); };
+    const throwBack = (state: CareMotion) => {
+      const direction = state.hand === 'left' ? -1 : 1;
+      state.stage = null; state.scale = 1; state.eligible = false; state.ignoreUntil = state.clock + FALLBACK.care.catchGraceSeconds;
+      state.flight = createPetFlight(state.flight, { x: direction * FALLBACK.care.throwBackX, y: FALLBACK.care.throwBackY });
+      setMotionPhase(state, 'return');
+    };
+    const respond = (response: PetResponse) => {
+      const state = motion.current; if (!state || response.id === state.responseId) return;
+      state.responseId = response.id; state.elapsed = 0; state.duration = response.durationMs / 1000; state.grip = null;
+      if (response.kind === 'eat') { state.stage = 'eat'; state.eligible = false; setMotionPhase(state, 'eating'); }
+      else if (response.kind === 'play' || response.kind === 'excited' || response.kind === 'tired') { state.stage = 'ball'; state.eligible = false; setMotionPhase(state, 'contact'); }
+      else if (response.kind === 'full') throwBack(state);
+      else if (response.kind === 'wake') { state.stage = 'wake'; setMotionPhase(state, 'responding'); }
+      else { state.stage = null; state.scale = 1; setMotionPhase(state, response.kind === 'asleep' ? 'sleeping' : 'ready'); }
+      for (const animation of root.getAnimations?.({ subtree: true }) ?? []) if ('animationName' in animation && typeof animation.animationName === 'string' && animation.animationName.startsWith('mascot-pet-')) animation.currentTime = 0;
+    };
+    const emit = (state: CareMotion, kind: PetEventKind) => {
+      const rejected = () => {
+        if (activity === 'sleep') { state.stage = null; state.eligible = false; setPosition(state, home); setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready'); }
+        else throwBack(state);
+      };
+      if (!latest.current.onEvent) { rejected(); return; }
+      // 同步ACK后才决定吃掉、接住或弹开；一次用户抛掷最多提交一次照料事件。
+      state.eligible = false; setMotionPhase(state, 'contact');
+      const result = latest.current.onEvent({ kind, at: performance.now() });
+      if (result) respond(result); else rejected();
+    };
+    const catchAlong = (state: CareMotion, from: PetPoint, to: PetPoint) => {
+      if (!state.eligible || state.clock < state.ignoreUntil || activity === 'sleep') return false;
+      const target = anchors();
+      const mouthRadius = { x: (FALLBACK.care.mouthReachPx + propSize * 0.24) * 2 / width, y: (FALLBACK.care.mouthReachPx + propSize * 0.2) * 2 / height };
+      const handRadius = { x: (FALLBACK.care.handReachPx + propSize * 0.23) * 2 / width, y: (FALLBACK.care.handReachPx + propSize * 0.32) * 2 / height };
+      const mouthHit = activity === 'feed' && sweptPetCatch(from, to, target.mouth, mouthRadius);
+      const hands = (['left', 'right'] as const).filter(side => sweptPetCatch(from, to, target[side], handRadius));
+      hands.sort((a, b) => Math.hypot((target[a].x - from.x) * width, (target[a].y - from.y) * height) - Math.hypot((target[b].x - from.x) * width, (target[b].y - from.y) * height));
+      // 高速一帧跨过手与嘴时先接触更近的部位，不能直接穿过左手算吃到嘴里。
+      const firstHand = hands[0];
+      const distance = (point: PetPoint) => Math.hypot((point.x - from.x) * width, (point.y - from.y) * height);
+      if (mouthHit && (!firstHand || distance(target.mouth) < distance(target[firstHand]))) { setPosition(state, target.mouth); emit(state, 'bite'); return true; }
+      const side = hands[0]; if (!side) return false;
+      chooseHand(state, side); setPosition(state, target[side]); state.flight.vx = 0; state.flight.vy = 0; state.elapsed = 0;
+      if (activity === 'feed') { state.stage = 'hand'; setMotionPhase(state, 'contact'); }
+      else emit(state, 'catch');
+      return true;
+    };
+
+    // 外部只传入意图，重新抓住会直接接管当前飞行位置，不回到预设起点。
+    const input = (next: PetInput) => {
+      const state = motion.current; if (!state) return;
+      if (next.type === 'cancel') {
+        state.stage = null; state.grip = null; state.eligible = false; state.scale = 1;
+        if (activity === 'sleep') { setPosition(state, home); setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready'); }
+        else { state.flight = createPetFlight(state.flight, { x: 0, y: 0 }); setMotionPhase(state, 'return'); }
+        return;
+      }
+      if (next.type === 'activate') {
+        state.grip = null; state.stage = null; state.eligible = true; state.scale = 1;
+        if (activity === 'sleep') { emit(state, 'soothe'); return; }
+        const target = anchors();
+        const side = Math.hypot(target.left.x - state.flight.x, target.left.y - state.flight.y) < Math.hypot(target.right.x - state.flight.x, target.right.y - state.flight.y) ? 'left' : 'right';
+        chooseHand(state, side); state.stage = null; state.scale = 1; state.eligible = true; state.ignoreUntil = state.clock;
+        const duration = FALLBACK.care.keyboardFlightSeconds;
+        state.flight = createPetFlight(state.flight, { x: (target[side].x - state.flight.x) / duration, y: (target[side].y - state.flight.y - 0.5 * PET_FLIGHT_SETTINGS.gravity * duration ** 2) / duration });
+        setMotionPhase(state, 'flight'); return;
+      }
+      if (next.type === 'start') { state.stage = null; state.eligible = true; state.scale = 1; state.grip = { at: performance.now(), point: next.point ?? state.flight, travel: 0 }; state.flight.vx = 0; state.flight.vy = 0; setMotionPhase(state, 'held'); }
+      const previousPoint = { x: state.flight.x, y: state.flight.y };
+      if (next.point) {
+        if (state.grip) { state.grip.travel += Math.hypot(next.point.x - state.grip.point.x, next.point.y - state.grip.point.y); state.grip.point = next.point; }
+        if (activity === 'sleep') {
+          const dx = next.point.x - home.x; const dy = next.point.y - home.y; const ratio = Math.min(1, FALLBACK.care.moonTravel / Math.max(0.001, Math.hypot(dx, dy)));
+          setPosition(state, { x: home.x + dx * ratio, y: home.y + dy * ratio });
+        } else setPosition(state, next.point);
+      }
+      if (next.type === 'release') {
+        if (activity === 'sleep') {
+          const durationMs = state.grip ? performance.now() - state.grip.at : 0;
+          const tailSpeed = Math.hypot(next.velocity?.x ?? 0, next.velocity?.y ?? 0);
+          const gentle = state.grip && durationMs >= FALLBACK.care.sleepMinimumMs && state.grip.travel >= FALLBACK.care.sleepTravel && state.grip.travel / Math.max(0.001, durationMs / 1000) <= FALLBACK.care.sleepMaximumSpeed && tailSpeed <= FALLBACK.care.sleepMaximumSpeed;
+          state.grip = null; setPosition(state, home);
+          if (gentle) emit(state, 'soothe'); else setMotionPhase(state, latest.current.response?.kind === 'asleep' ? 'sleeping' : 'ready');
+        } else {
+          state.grip = null; state.ignoreUntil = state.clock; state.flight = createPetFlight(state.flight, next.velocity ?? { x: 0, y: 0 }); setMotionPhase(state, 'flight');
+          catchAlong(state, previousPoint, state.flight);
+        }
+      }
+    };
+    controller.current = { input, respond };
+
+    const advance = (state: CareMotion, delta: number) => {
+      state.clock += delta; state.elapsed += delta;
+      const target = anchors();
+      if (state.stage === 'hand') {
+        setPosition(state, target[state.hand]);
+        if (state.elapsed >= FALLBACK.care.handHoldSeconds) { state.stage = 'mouth'; state.elapsed = 0; state.from = { x: state.flight.x, y: state.flight.y }; }
+      } else if (state.stage === 'mouth') {
+        const amount = Math.min(1, state.elapsed / FALLBACK.care.handToMouthSeconds); const smooth = amount * amount * (3 - 2 * amount);
+        setPosition(state, { x: state.from.x + (target.mouth.x - state.from.x) * smooth, y: state.from.y + (target.mouth.y - state.from.y) * smooth - Math.sin(amount * Math.PI) * 0.08 });
+        if (amount === 1) emit(state, 'bite');
+      } else if (state.stage === 'eat') {
+        const amount = state.elapsed / Math.max(0.001, state.duration);
+        if (amount < 0.65) { setPosition(state, target.mouth); state.scale = Math.max(0, 1 - amount / 0.3); }
+        else { setPosition(state, home); state.scale = clamp((amount - 0.7) / 0.22, 0, 1); }
+        if (amount >= 1) { state.stage = null; state.scale = 1; setPosition(state, home); setMotionPhase(state, 'ready'); }
+      } else if (state.stage === 'ball') {
+        setPosition(state, target[state.hand]);
+        if (state.elapsed >= FALLBACK.care.handHoldSeconds) throwBack(state);
+      } else if (state.stage === 'wake') {
+        if (state.elapsed >= state.duration) { state.stage = null; setMotionPhase(state, 'ready'); }
+      } else if (state.phase === 'flight' || state.phase === 'return') {
+        const previousPoint = { x: state.flight.x, y: state.flight.y };
+        state.flight = advancePetFlight(state.flight, delta, radius);
+        if (!catchAlong(state, previousPoint, state.flight) && isPetFlightResting(state.flight, radius)) setMotionPhase(state, 'ready');
+      }
+    };
+    const paint = () => {
+      const state = motion.current; if (!state) return;
+      const point = pixels(state.flight);
+      root.dataset.petDelivery = state.stage ?? 'none';
+      if (state.phase === 'flight' || state.phase === 'return' || state.phase === 'held') {
+        const target = anchors();
+        const side = Math.hypot((target.left.x - state.flight.x) * width, (target.left.y - state.flight.y) * height) < Math.hypot((target.right.x - state.flight.x) * width, (target.right.y - state.flight.y) * height) ? 'left' : 'right';
+        if (side !== state.hand) chooseHand(state, side);
+      }
+      root.style.setProperty('--pet-x', `${point.x}px`); root.style.setProperty('--pet-y', `${point.y}px`);
+      root.style.setProperty('--pet-scale', String(state.scale)); root.style.setProperty('--pet-spin', `${state.flight.spin}rad`);
+      if (activity !== 'sleep' && !latest.current.reduced) {
+        const body = root.querySelector('.mascot-static-body')?.getBoundingClientRect(); const board = root.getBoundingClientRect();
+        if (body) { root.style.setProperty('--fb-gaze-x', String(clamp((point.x - (body.left - board.left + body.width / 2)) / Math.max(1, body.width * 0.55), -1, 1))); root.style.setProperty('--fb-gaze-y', String(clamp((point.y - (body.top - board.top + body.height * 0.42)) / Math.max(1, body.height * 0.6), -1, 1))); }
+      }
+    };
+    const measure = () => {
+      const target = anchors(); const state = motion.current; const element = latest.current.prop.current;
+      const box = element?.getBoundingClientRect(); const board = root.getBoundingClientRect();
+      const next: PetTargets = { phase: state?.phase ?? 'ready', mouth: pixels(target.mouth), hand: pixels(target.right), leftHand: pixels(target.left), rightHand: pixels(target.right), prop: state && state.scale > 0.06 && box ? { x: box.left + box.width / 2 - board.left, y: box.top + box.height / 2 - board.top, radius: propSize * state.scale / 2 } : null };
+      const moved = (a: PetPoint, b: PetPoint) => Math.hypot(a.x - b.x, a.y - b.y) > FALLBACK.care.targetTolerance;
+      if (!lastTargets || next.phase !== lastTargets.phase || Boolean(next.prop) !== Boolean(lastTargets.prop) || moved(next.mouth, lastTargets.mouth) || moved(next.leftHand!, lastTargets.leftHand!) || moved(next.rightHand!, lastTargets.rightHand!) || next.prop && lastTargets.prop && (moved(next.prop, lastTargets.prop) || Math.abs(next.prop.radius - lastTargets.prop.radius) > FALLBACK.care.targetTolerance)) { lastTargets = next; latest.current.onTargets?.(next); }
+    };
+    const tick = (at: number) => {
+      frameId = 0; if (document.hidden || !visible) { lastAt = null; return; }
+      const delta = lastAt === null ? 0 : Math.min(FALLBACK.care.maxFrameSeconds, Math.max(0, (at - lastAt) / 1000)); lastAt = at;
+      if (motion.current) advance(motion.current, delta);
+      paint(); measure(); if (activity) frameId = requestAnimationFrame(tick);
+    };
+    const resume = () => { if (frameId) cancelAnimationFrame(frameId); frameId = 0; lastAt = null; root.dataset.petPaused = document.hidden || !visible ? 'true' : 'false'; if (!document.hidden && visible) frameId = requestAnimationFrame(tick); };
+    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; resume(); }); intersection.observe(root);
+    document.addEventListener('visibilitychange', resume); paint(); measure(); resume();
+    if (options.response) respond(options.response);
+    return () => { if (frameId) cancelAnimationFrame(frameId); intersection.disconnect(); document.removeEventListener('visibilitychange', resume); controller.current = null; };
+  }, [options.activity, options.width, options.height]);
+  useLayoutEffect(() => { if (options.response) controller.current?.respond(options.response); }, [options.response?.id]);
+  useLayoutEffect(() => { if (!options.input || seenInput.current === options.input) return; seenInput.current = options.input; controller.current?.input(options.input); }, [options.input]);
+  return { phase, hand };
+}
+
 /** CSS后备只消费同一套交互意图，不增加日志、不保存数据、不自行安装手势监听。 */
-export default function MascotFallback({ mood, expression, gaze, interaction, reaction, reduced, activity = null, response = null, onPetTargets, petInput = null }: MascotFallbackProps) {
+export default function MascotFallback({ mood, expression, gaze, interaction, reaction, reduced, activity = null, response = null, onPetTargets, onPetEvent, petInput = null }: MascotFallbackProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const mouthRef = useRef<HTMLSpanElement>(null);
+  const leftHandRef = useRef<HTMLElement>(null);
   const handRef = useRef<HTMLElement>(null);
   const propRef = useRef<HTMLSpanElement>(null);
-  const targetsCallback = useRef(onPetTargets);
-  const consumedInput = useRef<PetInput | null>(null);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gripRef = useRef<MascotHit['local'] | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [propPoint, setPropPoint] = useState<PetPoint | null>(null);
-  const [transfer, setTransfer] = useState<{ id: number; from: PetPoint; to: PetPoint } | null>(null);
-  useEffect(() => { targetsCallback.current = onPetTargets; }, [onPetTargets]);
   // 松手仍保留最后抓点作为回弹轴，避免旋转中心突然跳回肚子造成位置顿挫。
   useEffect(() => { if (interaction?.kind === 'drag') gripRef.current = interaction.hit.local; }, [interaction]);
   useLayoutEffect(() => {
@@ -159,97 +376,9 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
     y: clamp(frame.top + frame.height * carePosition.y, propSize / 2 + FALLBACK.care.homeInset, Math.max(propSize / 2 + FALLBACK.care.homeInset, size.height - propSize / 2 - FALLBACK.care.homeInset)),
   };
   const petKind = activity ? response?.kind ?? 'idle' : 'idle';
-  const isHeld = petInput?.type === 'start' || petInput?.type === 'move';
-
-  // 切换玩法或舞台尺寸时重置当前道具，退出后不残留上一个玩法的坐标和延迟。
-  useLayoutEffect(() => {
-    setPropPoint(null); setTransfer(null);
-    consumedInput.current = petInput;
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = null;
-  }, [activity, size.width, size.height]);
-  useEffect(() => () => { if (resetTimer.current) clearTimeout(resetTimer.current); }, []);
-
-  // 这里只消费外部输入；默认纵向滚动和显式接管都由主输入层决定。
-  useLayoutEffect(() => {
-    if (!activity || activity === 'sleep' || !petInput || consumedInput.current === petInput) return;
-    consumedInput.current = petInput;
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = null;
-    if (petInput.type === 'cancel') { setPropPoint(null); return; }
-    if (petInput.point && petInput.type !== 'activate') {
-      setPropPoint({
-        x: clamp((petInput.point.x + 1) * size.width / 2, propSize / 2, Math.max(propSize / 2, size.width - propSize / 2)),
-        y: clamp((petInput.point.y + 1) * size.height / 2, propSize / 2, Math.max(propSize / 2, size.height - propSize / 2)),
-      });
-    }
-    if (petInput.type === 'release') resetTimer.current = setTimeout(() => { setPropPoint(null); resetTimer.current = null; }, FALLBACK.care.resetDelayMs);
-  }, [activity, petInput, size.width, size.height, propSize]);
-
-  // 从可见位置快照到真实嘴/右手位置，动画开始后不追写终点，避免反馈闭环越跑越远。
-  useLayoutEffect(() => {
-    if (!activity || !response || !rootRef.current) return;
-    if (resetTimer.current) clearTimeout(resetTimer.current);
-    resetTimer.current = null;
-    if ((activity === 'feed' && response.kind === 'eat') || (activity === 'tease' && (response.kind === 'play' || response.kind === 'excited'))) {
-      const stage = rootRef.current.getBoundingClientRect();
-      const prop = propRef.current?.getBoundingClientRect();
-      const anchor = (activity === 'feed' ? mouthRef : handRef).current?.getBoundingClientRect();
-      if (prop && anchor) setTransfer({ id: response.id, from: { x: prop.left + prop.width / 2 - stage.left - home.x, y: prop.top + prop.height / 2 - stage.top - home.y }, to: { x: anchor.left + anchor.width / 2 - stage.left - home.x, y: anchor.top + anchor.height / 2 - stage.top - home.y } });
-    } else setTransfer(null);
-    setPropPoint(null);
-    // 同一种回应可以连续触发，按新id重启局部动画，不重挂整个角色或改变命中几何。
-    for (const animation of rootRef.current.getAnimations?.({ subtree: true }) ?? []) {
-      if ('animationName' in animation && typeof animation.animationName === 'string' && animation.animationName.startsWith('mascot-pet-')) animation.currentTime = 0;
-    }
-  }, [activity, response?.id, size.width, size.height]);
-
-  // 只在活动可见时逐帧回报真实DOM锚点；轻微浮动、吃东西和伸手时按钮不会留在旧坐标。
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    let frameId = 0; let visible = true; let last: PetTargets | null = null;
-    const changed = (a: PetPoint, b: PetPoint) => Math.hypot(a.x - b.x, a.y - b.y) > FALLBACK.care.targetTolerance;
-    const measure = () => {
-      frameId = 0;
-      if (document.hidden || !visible) return;
-      const stage = root.getBoundingClientRect();
-      const center = (element: HTMLElement | null, fallback: PetPoint): PetPoint => {
-        if (!element) return fallback;
-        const rect = element.getBoundingClientRect();
-        return { x: rect.left + rect.width / 2 - stage.left, y: rect.top + rect.height / 2 - stage.top };
-      };
-      const propRect = propRef.current?.getBoundingClientRect();
-      const propVisible = activity && propRect && propRect.width > 2 && propRef.current && Number(getComputedStyle(propRef.current).opacity) > 0.1;
-      const next: PetTargets = {
-        prop: propVisible ? { ...center(propRef.current, { x: 0, y: 0 }), radius: Math.max(propRect.width, propRect.height) / 2 } : null,
-        mouth: center(mouthRef.current, { x: stage.width / 2, y: stage.height / 2 }),
-        hand: center(handRef.current, { x: stage.width / 2, y: stage.height / 2 }),
-      };
-      // 球飞回时也继续追看真实位置，直接写视线变量，避免为了动画每帧重渲染React。
-      if (activity === 'tease' && next.prop && !reduced) {
-        const body = root.querySelector('.mascot-static-body')?.getBoundingClientRect();
-        if (body) {
-          root.style.setProperty('--fb-gaze-x', String(clamp((next.prop.x - (body.left - stage.left + body.width / 2)) / Math.max(1, body.width * 0.55), -1, 1)));
-          root.style.setProperty('--fb-gaze-y', String(clamp((next.prop.y - (body.top - stage.top + body.height * 0.42)) / Math.max(1, body.height * 0.6), -1, 1)));
-        }
-      }
-      if (!last || changed(next.mouth, last.mouth) || changed(next.hand, last.hand) || Boolean(next.prop) !== Boolean(last.prop) || (next.prop && last.prop && (changed(next.prop, last.prop) || Math.abs(next.prop.radius - last.prop.radius) > FALLBACK.care.targetTolerance))) {
-        last = next; targetsCallback.current?.(next);
-      }
-      if (activity) frameId = requestAnimationFrame(measure);
-    };
-    const resume = () => {
-      if (frameId) cancelAnimationFrame(frameId);
-      frameId = 0;
-      root.dataset.petPaused = document.hidden || !visible ? 'true' : 'false';
-      if (!document.hidden && visible) frameId = requestAnimationFrame(measure);
-    };
-    const observer = new ResizeObserver(resume); observer.observe(root);
-    const intersection = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; resume(); }); intersection.observe(root);
-    document.addEventListener('visibilitychange', resume); resume();
-    return () => { if (frameId) cancelAnimationFrame(frameId); observer.disconnect(); intersection.disconnect(); document.removeEventListener('visibilitychange', resume); };
-  }, [activity, reduced]);
+  const care = useFallbackCare({ root: rootRef, mouth: mouthRef, leftHand: leftHandRef, rightHand: handRef, prop: propRef,
+    activity, response, input: petInput, width: size.width, height: size.height, home, propSize, reduced,
+    onTargets: onPetTargets, onEvent: onPetEvent });
 
   const kind = interaction?.kind ?? null;
   const strength = clamp(interaction?.strength ?? 0, 0, 1);
@@ -276,12 +405,10 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
   const faceX = (leftX + rightX) * FALLBACK.facePull;
   const faceY = (leftY + rightY) * FALLBACK.facePull;
   const faceTilt = isPinch && !isTwoCheeks ? clamp((side === 'left' ? -1 : 1) * pullY / Math.max(1, frame.height) * 58 + pullX / Math.max(1, frame.width) * 16, -FALLBACK.faceTilt, FALLBACK.faceTilt) : 0;
-  // 逗球时眼睛看向真实道具位置，睡着则闭眼；直接手势仍优先保留自己的脸部形变。
-  const careGaze = activity === 'tease' ? { x: ((propPoint?.x ?? home.x) - (frame.left + frame.width / 2)) / Math.max(1, frame.width * 0.55), y: ((propPoint?.y ?? home.y) - (frame.top + frame.height * 0.42)) / Math.max(1, frame.height * 0.6) } : gaze;
   const style: VariableStyle = {
     '--sculpture-color': mood === null ? MASCOT_SETTINGS.neutralColor : MASCOT_SETTINGS.moodColors[mood],
-    '--fb-gaze-x': reduced ? 0 : clamp(careGaze.x, -1, 1),
-    '--fb-gaze-y': reduced ? 0 : clamp(careGaze.y, -1, 1),
+    '--fb-gaze-x': reduced ? 0 : clamp(gaze.x, -1, 1),
+    '--fb-gaze-y': reduced ? 0 : clamp(gaze.y, -1, 1),
     '--fb-gaze-travel': `${FALLBACK.gazeTravel}px`,
     '--fb-drag-x': `${dragX}px`,
     '--fb-drag-y': `${dragY}px`,
@@ -313,9 +440,7 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
     '--fb-touch-y': `${clamp(50 - (interaction?.hit.local.y ?? 0) * 45, 15, 85)}%`,
     '--pet-prop-size': `${propSize}px`,
     '--pet-home-x': `${home.x}px`, '--pet-home-y': `${home.y}px`,
-    '--pet-offset-x': `${(propPoint?.x ?? home.x) - home.x}px`, '--pet-offset-y': `${(propPoint?.y ?? home.y) - home.y}px`,
-    '--pet-from-x': `${transfer?.from.x ?? 0}px`, '--pet-from-y': `${transfer?.from.y ?? 0}px`,
-    '--pet-to-x': `${transfer?.to.x ?? 0}px`, '--pet-to-y': `${transfer?.to.y ?? 0}px`,
+    '--pet-x': `${home.x}px`, '--pet-y': `${home.y}px`, '--pet-scale': 1, '--pet-spin': '0rad',
     '--pet-response-time': `${clamp(response?.durationMs ?? 1200, FALLBACK.care.responseMinMs, FALLBACK.care.responseMaxMs)}ms`,
   };
   // 首帧使用CSS容器尺寸；观察器准备好后与命中函数共享精确像素位置。
@@ -324,12 +449,12 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
     style['--fb-width'] = `${frame.width}px`; style['--fb-height'] = `${frame.height}px`;
   }
 
-  return <div ref={rootRef} className={`mascot-fallback mascot-face-${expression} ${reduced ? 'is-reduced' : ''}`} data-gesture={kind ?? 'idle'} data-reaction={reaction ?? 'idle'} data-region={interaction?.hit.region ?? 'body'} data-pet-activity={activity ?? 'none'} data-pet-response={petKind} data-pet-held={isHeld ? 'true' : 'false'} style={style} aria-hidden="true">
+  return <div ref={rootRef} className={`mascot-fallback mascot-face-${expression} ${reduced ? 'is-reduced' : ''}`} data-gesture={kind ?? 'idle'} data-reaction={reaction ?? 'idle'} data-region={interaction?.hit.region ?? 'body'} data-pet-activity={activity ?? 'none'} data-pet-response={petKind} data-pet-phase={care.phase} data-pet-hand={care.hand} data-pet-variant={response?.variant ?? 0} style={style} aria-hidden="true">
     {/* 地面影子不随身体飞走，轻微缩淡让悬挂更有重量感。 */}
     <div className="mascot-fallback-ground"><span className="mascot-static-shadow" /></div>
     <div className="mascot-fallback-rig"><div className="mascot-fallback-suspension"><div className="mascot-fallback-pose"><div className="mascot-fallback-breath">
       {/* 手脚与主体分层，局部揉捏不会把整个团子连同影子一起拉成气球。 */}
-      <span className="mascot-limb mascot-hand-rig left" style={partStyle(FALLBACK.parts['hand-left'])}><i className="mascot-static-hand left" /></span>
+      <span className="mascot-limb mascot-hand-rig left" style={partStyle(FALLBACK.parts['hand-left'])}><i ref={leftHandRef} className="mascot-static-hand left" /></span>
       <span className="mascot-limb mascot-hand-rig right" style={partStyle(FALLBACK.parts['hand-right'])}><i ref={handRef} className="mascot-static-hand right" /></span>
       <div className="mascot-static-body">
         <span className="mascot-static-crown" />
@@ -348,7 +473,7 @@ export default function MascotFallback({ mood, expression, gaze, interaction, re
       <span className="mascot-fallback-spark">✧</span>
       <span className="mascot-soft-mark left" /><span className="mascot-soft-mark right" />
     </div></div></div></div>
-    {activity && <span key={`${activity}-${response?.id ?? 0}`} ref={propRef} className={`mascot-care-prop is-${activity} ${transfer !== null && transfer.id === response?.id ? 'is-transferring' : ''}`}><PetProp activity={activity} /></span>}
+    {activity && <span key={activity} ref={propRef} className={`mascot-care-prop is-${activity}`}><PetProp activity={activity} /></span>}
     {activity === 'sleep' && petKind === 'asleep' && <span className="mascot-sleep-mark">z<span>z</span></span>}
   </div>;
 }

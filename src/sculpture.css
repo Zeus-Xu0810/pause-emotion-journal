@@ -14,8 +14,8 @@
   --mascot-idle-hand-time: 12300ms;
   --mascot-care-row-height: 36px;
   --mascot-care-tools-height: 76px;
-  --mascot-prop-return-time: 320ms;
   --mascot-sleep-breath-time: 5800ms;
+  --mascot-sleepy-blink-time: 4300ms;
   --mascot-face-ink: #33473d;
   --mascot-blush: #dba79e;
   position: relative;
@@ -174,29 +174,39 @@
 @keyframes mascot-idle-hand { 0%, 58%, 73%, 100% { transform: rotate(0deg); } 62% { transform: rotate(-9deg) translateY(-3%); } 66% { transform: rotate(-5deg) translateY(-2%); } 69% { transform: rotate(-10deg) translateY(-3%); } }
 
 /* 喂食、逗球与月亮共用一份SVG道具，位置由输入决定，透明目标读取此元素的真实包围框。 */
-.mascot-care-prop { position: absolute; z-index: 3; display: block; left: var(--pet-home-x); top: var(--pet-home-y); width: var(--pet-prop-size); height: var(--pet-prop-size); transform: translate(-50%, -50%) translate(var(--pet-offset-x, 0px), var(--pet-offset-y, 0px)); transition: transform var(--mascot-prop-return-time) var(--mascot-elastic); filter: drop-shadow(0 5px 5px #344d3917); }
+.mascot-care-prop { position: absolute; z-index: 3; display: block; left: var(--pet-x, var(--pet-home-x)); top: var(--pet-y, var(--pet-home-y)); width: var(--pet-prop-size); height: var(--pet-prop-size); transform: translate(-50%, -50%) rotate(var(--pet-spin, 0rad)) scale(var(--pet-scale, 1)); filter: drop-shadow(0 5px 5px #344d3917); will-change: left, top, transform; }
 .mascot-care-prop svg { display: block; width: 100%; height: 100%; }
-.mascot-fallback[data-pet-held='true'] .mascot-care-prop { transition: none; }
-.mascot-fallback[data-pet-response='eat'] .mascot-care-prop.is-feed.is-transferring { animation: mascot-pet-bite-transfer var(--pet-response-time) ease-in-out both; }
-.mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-care-prop.is-tease.is-transferring { animation: mascot-pet-ball-return var(--pet-response-time) ease-in-out both; }
+/* 只有道具本身逐帧移动，接物由真实左右手决定，飞行/归还途中都可以重新抓住。 */
+.mascot-fallback:is([data-pet-phase='flight'], [data-pet-phase='return'], [data-pet-phase='held']) .mascot-care-prop { transition: none; }
+.mascot-fallback:not([data-pet-activity='none'])[data-pet-hand='left'] .mascot-hand-rig.left, .mascot-fallback:not([data-pet-activity='none'])[data-pet-hand='right'] .mascot-hand-rig.right { z-index: 4; }
+.mascot-fallback:is([data-pet-phase='flight'], [data-pet-phase='held'])[data-pet-hand='left'] .mascot-static-hand.left { transform: translate(10%, -9%) rotate(-13deg); }
+.mascot-fallback:is([data-pet-phase='flight'], [data-pet-phase='held'])[data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-10%, -9%) rotate(13deg); }
+.mascot-fallback[data-pet-phase='contact'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(17%, -15%) rotate(-32deg); }
+.mascot-fallback[data-pet-phase='contact'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-17%, -15%) rotate(32deg); }
+.mascot-fallback[data-pet-delivery='mouth'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(215%, -34%) rotate(-52deg); }
+.mascot-fallback[data-pet-delivery='mouth'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-215%, -34%) rotate(52deg); }
+.mascot-fallback[data-pet-response='eat'][data-pet-hand='left'] .mascot-static-hand.left { animation: mascot-pet-belly-rub-left var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='eat'][data-pet-hand='right'] .mascot-static-hand.right { animation: mascot-pet-belly-rub var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-activity='tease'] .mascot-static-eye { transition-duration: 90ms; }
-.mascot-fallback[data-pet-activity='tease'] .mascot-static-hand.right { transform: rotate(-25deg) translate(-12%, -10%); }
 .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'], [data-pet-response='eat']) .mascot-hand-rig.right { z-index: 4; }
 .mascot-fallback[data-pet-response='eat'] .mascot-static-mouth { left: 45%; top: 54%; width: 10%; height: 8%; border: 0; border-radius: 45%; background: var(--mascot-face-ink); animation: mascot-pet-chew var(--pet-response-time) linear both; }
-.mascot-fallback[data-pet-response='eat'] .mascot-static-hand.right { animation: mascot-pet-belly-rub var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='full'] .mascot-static-face { animation: mascot-pet-full 680ms ease-in-out both; }
 .mascot-fallback[data-pet-response='full'] .mascot-static-mouth { left: 45%; top: 57%; width: 10%; height: 2%; border: 0; border-bottom: 2px solid var(--mascot-face-ink); border-radius: 50%; }
-.mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { animation: mascot-pet-reach var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='excited'] .mascot-fallback-suspension { animation: mascot-pet-wiggle 900ms ease-out both; }
 .mascot-fallback[data-pet-response='tired'] { --fb-eye-open: .45; }
 .mascot-fallback[data-pet-response='tired'] .mascot-static-hand.right { transform: rotate(13deg) translateY(15%); }
 .mascot-fallback[data-pet-response='drowsy'] { --fb-eye-open: .32; }
 .mascot-fallback[data-pet-response='drowsy'] .mascot-static-face { transform: translateY(2%) rotate(-4deg); }
+.mascot-fallback[data-pet-response='drowsy'] .mascot-static-lid { animation: mascot-pet-heavy-blink var(--mascot-sleepy-blink-time) ease-in-out infinite; }
+.mascot-fallback[data-pet-response='drowsy'] .mascot-static-mouth { left: 46%; top: 54%; width: 8%; height: 8%; border: 1.5px solid var(--mascot-face-ink); border-radius: 50%; animation: mascot-pet-yawn var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='drowsy'][data-pet-variant='0'] .mascot-static-hand.left, .mascot-fallback[data-pet-response='drowsy'][data-pet-variant='2'] .mascot-static-hand.left { animation: mascot-pet-rub-eye-left var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='drowsy'][data-pet-variant='1'] .mascot-static-hand.right { animation: mascot-pet-rub-eye-right var(--pet-response-time) ease-in-out both; }
+.mascot-fallback[data-pet-response='drowsy'] .mascot-hand-rig { z-index: 4; }
 .mascot-fallback[data-pet-response='asleep'] { --fb-eye-open: .85; --fb-cheek-opacity: .24; }
 .mascot-fallback[data-pet-response='asleep'] .mascot-static-face { transform: translateY(2.5%) rotate(-5deg); }
 .mascot-fallback[data-pet-response='asleep'] .mascot-static-lid { top: 30%; height: 50%; border: 0; border-bottom: 2px solid var(--mascot-face-ink); border-radius: 0 0 50% 50%; animation: none; }
 .mascot-fallback[data-pet-response='asleep'] .mascot-static-pupil { opacity: 0; }
-.mascot-fallback[data-pet-response='asleep'] .mascot-static-mouth { left: 47%; top: 56%; width: 6%; height: 4%; border: 1.5px solid var(--mascot-face-ink); border-radius: 50%; background: transparent; }
+.mascot-fallback[data-pet-response='asleep'] .mascot-static-mouth { left: 47%; top: 56%; width: 6%; height: 4%; border: 1.5px solid var(--mascot-face-ink); border-radius: 50%; background: transparent; animation: mascot-pet-sleep-mouth var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='asleep'] .mascot-fallback-breath { transform-origin: 50% 95%; animation: mascot-pet-sleep-breath var(--mascot-sleep-breath-time) ease-in-out infinite; }
 .mascot-fallback[data-pet-response='wake'] .mascot-fallback-suspension { animation: mascot-pet-wake var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { animation: mascot-pet-stretch-left var(--pet-response-time) ease-in-out both; }
@@ -204,12 +214,16 @@
 .mascot-sleep-mark { position: absolute; left: calc(var(--fb-left) + var(--fb-width) * .83); top: calc(var(--fb-top) + var(--fb-height) * .04); color: #a8ab8d; font-size: 18px; line-height: 1; transform: rotate(8deg); animation: mascot-pet-sleep-mark 2600ms ease-in-out infinite; }
 .mascot-sleep-mark span { display: inline-block; margin-left: 4px; font-size: 12px; transform: translateY(-8px); }
 .mascot-fallback[data-pet-paused='true'] *, .mascot-fallback[data-pet-paused='true'] *::after { animation-play-state: paused !important; }
-@keyframes mascot-pet-bite-transfer { 0% { transform: translate(-50%, -50%) translate(var(--pet-from-x), var(--pet-from-y)) scale(1); opacity: 1; } 27% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) scale(.62); opacity: 1; } 39%, 63% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) scale(0); opacity: 0; } 64% { transform: translate(-50%, -50%) scale(.4); opacity: 0; } 86%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
-@keyframes mascot-pet-chew { 0%, 24%, 100% { transform: scale(1, 1); } 33%, 49%, 65% { transform: scale(1.28, .48); } 41%, 57%, 74% { transform: scale(.85, 1.16); } }
+@keyframes mascot-pet-chew { 0%, 100% { transform: scale(1, 1); } 8%, 25%, 42%, 59%, 76% { transform: scale(1.28, .48); } 16%, 33%, 50%, 67%, 84% { transform: scale(.85, 1.16); } }
 @keyframes mascot-pet-belly-rub { 0%, 100% { transform: rotate(0deg); } 28%, 48%, 68% { transform: translate(-220%, 22%) rotate(46deg); } 38%, 58%, 78% { transform: translate(-205%, 36%) rotate(36deg); } }
+@keyframes mascot-pet-belly-rub-left { 0%, 100% { transform: rotate(0deg); } 28%, 48%, 68% { transform: translate(220%, 22%) rotate(-46deg); } 38%, 58%, 78% { transform: translate(205%, 36%) rotate(-36deg); } }
+/* 困倦不是立刻换成睡脸：先哈欠、揉眼，再慢慢闭眼；三种回应只改变小动作顺序。 */
+@keyframes mascot-pet-yawn { 0%, 100% { transform: scale(1, .4); } 32%, 50% { transform: scale(1.3, 1.9); } 74% { transform: scale(.9, .6); } }
+@keyframes mascot-pet-heavy-blink { 0%, 100% { transform: scaleY(1); } 28%, 48% { transform: scaleY(.1); } 67%, 75% { transform: scaleY(.5); } }
+@keyframes mascot-pet-rub-eye-left { 0%, 100% { transform: rotate(0deg); } 28%, 48%, 68% { transform: translate(235%, -76%) rotate(-52deg); } 38%, 58% { transform: translate(245%, -64%) rotate(-39deg); } }
+@keyframes mascot-pet-rub-eye-right { 0%, 100% { transform: rotate(0deg); } 28%, 48%, 68% { transform: translate(-235%, -76%) rotate(52deg); } 38%, 58% { transform: translate(-245%, -64%) rotate(39deg); } }
+@keyframes mascot-pet-sleep-mouth { 0% { transform: scale(1, 1.4); } 35% { transform: scale(1.15, 1.8); } 75%, 100% { transform: scale(1, .7); } }
 @keyframes mascot-pet-full { 0%, 100% { transform: translateX(0) rotate(0deg); } 18%, 52% { transform: translateX(-3%) rotate(-5deg); } 35%, 69% { transform: translateX(3%) rotate(5deg); } 86% { transform: translateX(-1%) rotate(-1deg); } }
-@keyframes mascot-pet-reach { 0%, 100% { transform: rotate(-25deg) translate(-12%, -10%); } 25%, 43% { transform: translate(-65%, -38%) rotate(-54deg); } 64% { transform: translate(-28%, -20%) rotate(-34deg); } }
-@keyframes mascot-pet-ball-return { 0% { transform: translate(-50%, -50%) translate(var(--pet-from-x), var(--pet-from-y)); } 22% { transform: translate(-50%, -50%) translate(var(--pet-to-x), var(--pet-to-y)) rotate(-40deg); } 52% { transform: translate(-50%, -50%) translate(10px, -26px) rotate(38deg); } 77% { transform: translate(-50%, -50%) translate(0, 6px) rotate(-12deg); } 100% { transform: translate(-50%, -50%); } }
 @keyframes mascot-pet-wiggle { 0%, 100% { transform: rotate(0deg); } 22% { transform: rotate(-3deg) translateY(-1%); } 47% { transform: rotate(3deg); } 72% { transform: rotate(-1.5deg); } }
 @keyframes mascot-pet-sleep-breath { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.008, 1.015); } }
 @keyframes mascot-pet-sleep-mark { 0%, 100% { opacity: .3; transform: translateY(0) rotate(8deg); } 55% { opacity: .8; transform: translateY(-5px) rotate(8deg); } }
@@ -234,16 +248,20 @@
 .mascot-fallback.is-reduced *, .mascot-fallback.is-reduced *::after { animation: none !important; transition: none !important; }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
-.mascot-fallback.is-reduced[data-pet-response='eat'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
-.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+.mascot-fallback.is-reduced[data-pet-response='eat'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
+.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+.mascot-fallback.is-reduced[data-pet-response='eat'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(210%, 28%) rotate(-40deg); }
+.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='left'] .mascot-static-hand.left { transform: translate(45%, -20%) rotate(40deg); }
 .mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
 .mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
 @media (prefers-reduced-motion: reduce) {
   .mood-sculpture-canvas canvas, .mascot-reply, .mascot-fallback *, .mascot-fallback *::after { animation: none !important; transition: none !important; }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
-  .mascot-fallback[data-pet-response='eat'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
-  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited']) .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+  .mascot-fallback[data-pet-response='eat'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
+  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
+  .mascot-fallback[data-pet-response='eat'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(210%, 28%) rotate(-40deg); }
+  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='left'] .mascot-static-hand.left { transform: translate(45%, -20%) rotate(40deg); }
   .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
   .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
   .mascot-reply { transform: none; }
