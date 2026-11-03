@@ -40,3 +40,18 @@ export function deformMascotPoint(point: SurfacePoint, field: MascotDeformation,
   }
   return output;
 }
+
+
+/** 已释放的局部软肉保持原锚点淡出，新接触不会把右脸残余受力搬到左脸。 */
+export interface MascotResidualField { field: MascotDeformation; weight: number }
+export function deformMascotLayers(point: SurfacePoint, field: MascotDeformation, residuals: readonly MascotResidualField[], output: SurfacePoint, scratch: SurfacePoint): SurfacePoint {
+  deformMascotPoint(point, field, output);
+  for (const residual of residuals) {
+    if (residual.weight <= 0) continue;
+    deformMascotPoint(point, residual.field, scratch);
+    output.x += (scratch.x - point.x) * residual.weight;
+    output.y += (scratch.y - point.y) * residual.weight;
+    output.z += (scratch.z - point.z) * residual.weight;
+  }
+  return output;
+}

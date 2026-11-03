@@ -4,9 +4,9 @@ import { MASCOT_SETTINGS as SETTINGS } from '../mascot-content';
 import type { MascotExpression, MascotReply } from '../mascot-content';
 import type { MoodScore } from '../types';
 import type { MascotSceneController, MascotSceneOptions, MascotManipulation, MascotHit, MascotGesture } from './mascot-interaction-types';
-import { deformMascotPoint } from './mascot-deformation';
+import { deformMascotLayers } from './mascot-deformation';
 import { advanceMascotSpring, mascotSoftLimit, MASCOT_DYNAMICS as DYNAMICS } from './mascot-dynamics';
-import type { MascotDeformation } from './mascot-deformation';
+import type { MascotDeformation, MascotResidualField } from './mascot-deformation';
 
 /** 直接操纵的可修改输入集中在此；形变上限保持曲面连续，避免捏拉翻面。 */
 const INTERACTION = {
@@ -15,6 +15,7 @@ const INTERACTION = {
   reactionDurations: { poke: 620, pinch: 920, drag: 1150, pat: 1050, tickle: 1100, wave: 950, bounce: 1100, shake: 1450 } as Record<MascotGesture, number>,
   reactionDurationMs: 950,
   particleCount: 10, particleLifetime: 0.95,
+  residualSeconds: 0.24, maximumResiduals: 2,
   idleActions: ['tilt', 'look', 'swing', 'stretch', 'shy', 'nod'] as MascotReply['action'][],
 };
 const GESTURE_EXPRESSION: Record<MascotGesture, MascotExpression> = { poke: 'curious', pinch: 'shy', drag: 'curious', pat: 'sleepy', tickle: 'happy', wave: 'happy', bounce: 'happy', shake: 'curious' };
@@ -86,6 +87,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     let previousDeformed = false;
     let mouthDirty = true;
     let lastBounds = '';
+    const residuals: (MascotResidualField & { remaining: number })[] = [];
+    const residualScratch = new THREE.Vector3();
     const scratch = new THREE.Vector3(); const mapped = new THREE.Vector3();
     const normal = new THREE.Vector3(); const tangentX = new THREE.Vector3(); const tangentY = new THREE.Vector3();
     const axisZ = new THREE.Vector3(0, 0, 1);
@@ -124,14 +127,14 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
 
     // 对身体、五官附着点和嘴部顶点使用同一个局部位移场，不能让脸停在变形前的表面。
     function deformPoint(point: THREE.Vector3, output: THREE.Vector3): THREE.Vector3 {
-      deformMascotPoint(point, deformation, output);
+      deformMascotLayers(point, deformation, residuals, output, residualScratch);
       return output;
     }
 
     function updateDeformation() {
       if (!bodyGeometry) return;
       deformation.kind = fieldKind; deformation.pull = fieldKind === 'drag' ? grab : pull; deformation.pressure = pressure; deformation.pinch = pinch; deformation.impulse = impulse; deformation.time = time;
-      const deformed = (fieldKind === 'drag' ? grab : pull).lengthSq() > 0.0000001 || Math.abs(pressure) + Math.abs(pinch) + Math.abs(impulse) > 0.0001;
+      const deformed = residuals.some(item => item.weight > 0) || (fieldKind === 'drag' ? grab : pull).lengthSq() > 0.0000001 || Math.abs(pressure) + Math.abs(pinch) + Math.abs(impulse) > 0.0001;
       if (deformed || previousDeformed) {
         const positions = bodyGeometry.getAttribute('position') as THREE.BufferAttribute;
         for (let index = 0; index < positions.count; index += 1) {
@@ -217,8 +220,22 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       return { region, local: { x: local.x, y: local.y, z: local.z } };
     }
 
-    function resetSpring() { grab.setScalar(0); grabVelocity.setScalar(0); grabTarget.setScalar(0); pull.setScalar(0); pullVelocity.setScalar(0); pullTarget.setScalar(0); pressure = 0; pressureVelocity = 0; pressureTarget = 0; pinch = 0; pinchVelocity = 0; pinchTarget = 0; }
+    function resetSpring() { residuals.length = 0; grab.setScalar(0); grabVelocity.setScalar(0); grabTarget.setScalar(0); pull.setScalar(0); pullVelocity.setScalar(0); pullTarget.setScalar(0); pressure = 0; pressureVelocity = 0; pressureTarget = 0; pinch = 0; pinchVelocity = 0; pinchTarget = 0; }
+    /** 换部位时将旧局部形变留在原处短暂消退，重心弹簧继续独立运行。 */
+    function switchField(kind: MascotGesture, local: MascotHit['local']) {
+      const nextKind = kind === 'shake' ? 'drag' : kind;
+      if (nextKind !== fieldKind || fieldAnchor.distanceToSquared(local as THREE.Vector3) > 0.08) {
+        const source = fieldKind === 'drag' ? grab : pull;
+        if (!reduced && source.lengthSq() + Math.abs(pressure) + Math.abs(pinch) + Math.abs(impulse) > 0.002) {
+          residuals.push({ field: { kind: fieldKind, anchor: { x: fieldAnchor.x, y: fieldAnchor.y, z: fieldAnchor.z }, pull: { x: source.x, y: source.y, z: source.z }, pressure, pinch, impulse, time }, weight: 1, remaining: INTERACTION.residualSeconds });
+          if (residuals.length > INTERACTION.maximumResiduals) residuals.shift();
+        }
+        pull.setScalar(0); pullVelocity.setScalar(0); pressure = 0; pressureVelocity = 0; pinch = 0; pinchVelocity = 0; impulse = 0;
+      }
+      fieldKind = nextKind; fieldAnchor.set(local.x, local.y, local.z);
+    }
     function stepSpring(delta: number) {
+      for (const item of residuals) { item.remaining = Math.max(0, item.remaining - delta); const phase = item.remaining / INTERACTION.residualSeconds; item.weight = phase * phase * (3 - 2 * phase); }
       const stiffness = held ? DYNAMICS.heldStiffness : DYNAMICS.releaseStiffness;
       const damping = held ? DYNAMICS.heldDamping : DYNAMICS.releaseDamping;
       for (const axis of ['x', 'y', 'z'] as const) {
@@ -388,7 +405,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
     function visibilityChanged() { if (document.hidden) stop(); else { draw(); requestFrame(); } }
     function motionChanged(event: MediaQueryListEvent) {
       reduced = event.matches; stop();
-      if (reduced) { blinkAmount = 0; idle = null; updateFeeling(0); active = null; reaction = null; if (!held) resetSpring(); setExpression(baseExpression(currentMood)); floating.position.y = 0; gaze.rotation.set(SETTINGS.baseRotation.x, SETTINGS.baseRotation.y, 0); bodyMaterial.color.copy(color); renderDirect(); }
+      if (reduced) { residuals.length = 0; blinkAmount = 0; idle = null; updateFeeling(0); active = null; reaction = null; if (!held) resetSpring(); setExpression(baseExpression(currentMood)); floating.position.y = 0; gaze.rotation.set(SETTINGS.baseRotation.x, SETTINGS.baseRotation.y, 0); bodyMaterial.color.copy(color); renderDirect(); }
       else requestFrame();
     }
 
@@ -498,7 +515,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           if (disposed) return;
           const starting = value && (!held || held.kind !== value.kind);
           held = value;
-          if (value) { lastContact = time; wake = 1; idle = null; if (starting) { energy = Math.min(1, energy + 0.2); if (value.kind === 'poke') pressure = Math.max(pressure, 0.16); } }
+          if (value) { lastContact = time; wake = 1; idle = null; if (starting) energy = Math.min(1, energy + 0.2); }
           if (!value) {
             pullTarget.setScalar(0); grabTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
             if (!reaction && !active) setExpression(baseExpression(currentMood));
@@ -507,8 +524,8 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
             return;
           }
           if (staticTimer) { clearTimeout(staticTimer); staticTimer = null; }
-          active = null; reaction = null; fieldKind = value.kind === 'shake' ? 'drag' : value.kind;
-          fieldAnchor.set(value.hit.local.x, value.hit.local.y, value.hit.local.z);
+          active = null; reaction = null; switchField(value.kind, value.hit.local);
+          if (starting && value.kind === 'poke') pressure = Math.max(pressure, 0.16);
           setExpression(GESTURE_EXPRESSION[value.kind]);
           const amount = THREE.MathUtils.clamp(value.strength, 0, 1);
           const worldX = value.dx * (camera.right - camera.left) / 2;
@@ -527,12 +544,10 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
           if (staticTimer) { clearTimeout(staticTimer); staticTimer = null; }
           held = null; active = null;
           // 松手仅改变目标和反应，不清空当前位移/速度，新的触摸可以直接接住余振。
-          fieldKind = kind === 'shake' ? 'drag' : kind;
+          switchField(kind, hit?.local ?? { x: 0, y: kind === 'pat' ? 0.65 : kind === 'tickle' ? -0.4 : 0, z: kind === 'pat' ? 0.5 : SETTINGS.body.depth });
           lastContact = time; wake = 1; energy = Math.min(1, energy + 0.22); idle = null;
           emitFeeling(kind, hit);
           pullTarget.setScalar(0); grabTarget.setScalar(0); pressureTarget = 0; pinchTarget = 0;
-          if (hit) fieldAnchor.set(hit.local.x, hit.local.y, hit.local.z);
-          else fieldAnchor.set(0, kind === 'pat' ? 0.65 : kind === 'tickle' ? -0.4 : 0, kind === 'pat' ? 0.5 : SETTINGS.body.depth);
           setExpression(GESTURE_EXPRESSION[kind]);
           if (reduced) {
             resetSpring();

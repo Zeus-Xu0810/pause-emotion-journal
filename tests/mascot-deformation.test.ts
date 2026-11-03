@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { deformMascotPoint } from '../src/lib/mascot-deformation.ts';
+import { deformMascotPoint, deformMascotLayers } from '../src/lib/mascot-deformation.ts';
 import type { MascotDeformation, SurfacePoint } from '../src/lib/mascot-deformation.ts';
 import type { MascotGesture } from '../src/lib/mascot-interaction-types.ts';
 import { MASCOT_DYNAMICS } from '../src/lib/mascot-dynamics.ts';
@@ -84,5 +84,18 @@ test('五官经过相同映射后仍位于身体表面外侧', () => {
     const normal = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
     const signedGap = (attached.x - skin.x) * normal[0] + (attached.y - skin.y) * normal[1] + (attached.z - skin.z) * normal[2];
     assert.ok(Number.isFinite(signedGap) && signedGap > 0, `五官不能埋入变形表面：${JSON.stringify({ kind: field.kind, x, y, signedGap })}`);
+  }
+});
+
+
+test('右脸松开后立刻戳左脸，旧形变留原处淡出而非跨脸跳转', () => {
+  const oldField: MascotDeformation = { ...baseField, kind: 'pinch', anchor: { x: 0.43, y: -0.05, z: 0.78 }, pull: { x: 0.5, y: 0, z: 0 }, pressure: 0.8 };
+  const newField: MascotDeformation = { ...baseField, kind: 'poke', anchor: { x: -0.43, y: -0.05, z: 0.78 } };
+  for (const point of [oldField.anchor, newField.anchor, { x: 0, y: 0.16, z: 0.82 }]) {
+    const before = map(point, oldField);
+    const atHandoff = deformMascotLayers(point, newField, [{ field: oldField, weight: 1 }], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+    assert.deepEqual(atHandoff, before, '交接起点必须与上一帧曲面相同');
+    const settled = deformMascotLayers(point, newField, [{ field: oldField, weight: 0 }], { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+    assert.deepEqual(settled, map(point, newField));
   }
 });
