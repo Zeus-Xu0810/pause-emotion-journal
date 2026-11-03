@@ -488,8 +488,7 @@ export function createMascotScene(host: HTMLDivElement, options: MascotSceneOpti
       for (let index = 0; index < INTERACTION.particleCount; index += 1) { const mesh = new THREE.Mesh(sparkleGeometry, new THREE.MeshBasicMaterial({ color: '#c7af72', transparent: true, depthWrite: false, opacity: 0 })); mesh.visible = false; effects.add(mesh); particles.push({ mesh, velocity: new THREE.Vector3(), age: 10, spin: 0 }); }
 
 
-      // 透明背景上的真实投影叠加程序化柔影，轻浮时仍有稳定接触感。
-      const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.ShadowMaterial({ opacity: 0.07 })); ground.rotation.x = -Math.PI / 2; ground.position.y = -1.05; ground.receiveShadow = true; scene.add(ground);
+      // 只保留边缘渐隐的接触柔影，避免拖到舞台旁边时方向投影被裁成矩形。
       const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const context = canvas.getContext('2d');
       if (context) {
         const gradient = context.createRadialGradient(64, 64, 7, 64, 64, 63); gradient.addColorStop(0, 'rgba(45,65,48,.23)'); gradient.addColorStop(0.4, 'rgba(45,65,48,.11)'); gradient.addColorStop(1, 'rgba(45,65,48,0)'); context.fillStyle = gradient; context.fillRect(0, 0, 128, 128);
