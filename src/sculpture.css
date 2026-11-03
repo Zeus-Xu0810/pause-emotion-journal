@@ -16,6 +16,11 @@
   --mascot-care-tools-height: 76px;
   --mascot-sleep-breath-time: 5800ms;
   --mascot-sleepy-blink-time: 4300ms;
+  --mascot-soft-arm-width: 92%;
+  --mascot-soft-arm-thickness: 52%;
+  --mascot-ball-cup-x: 17%;
+  --mascot-ball-cup-y: -15%;
+  --mascot-ball-cup-angle: 32deg;
   --mascot-face-ink: #33473d;
   --mascot-blush: #dba79e;
   position: relative;
@@ -95,6 +100,10 @@
 .mascot-foot-rig { z-index: 2; }
 .mascot-static-hand, .mascot-static-foot { position: absolute; inset: 0; display: block; background: var(--sculpture-color, #f3eee0); border: 1px solid #dfe2d6; border-radius: 50%; box-shadow: inset 3px 3px 7px #ffffff45; transform: rotate(0deg); transition: transform var(--mascot-limb-return) var(--mascot-elastic); }
 .mascot-static-hand { transform-origin: 50% 22%; }
+/* 短软臂与掌心共享变换，只跨过身体边缘的小间隙，不把手移动成长胳膊。 */
+.mascot-static-hand::before { content: ''; position: absolute; z-index: -1; top: 25%; width: var(--mascot-soft-arm-width); height: var(--mascot-soft-arm-thickness); border-radius: 50%; background: var(--sculpture-color, #f3eee0); box-shadow: inset 0 2px 4px #fff4; }
+.mascot-static-hand.left::before { left: 42%; }
+.mascot-static-hand.right::before { right: 42%; }
 .mascot-static-foot { transform-origin: 50% 10%; box-shadow: inset 2px 2px 5px #ffffff45, 0 2px 3px #687e6b08; }
 .mascot-fallback[data-gesture='drag'] .mascot-static-hand.left { transform: rotate(20deg) translateY(13%); }
 .mascot-fallback[data-gesture='drag'] .mascot-static-hand.right { transform: rotate(-20deg) translateY(13%); }
@@ -116,13 +125,13 @@
 .mascot-static-face { position: absolute; z-index: 3; inset: 0; transform: translate(var(--fb-face-x, 0px), var(--fb-face-y, 0px)) rotate(var(--fb-face-tilt, 0deg)); transform-origin: 50% 46%; transition: transform var(--mascot-return-time) var(--mascot-elastic); }
 .mascot-fallback[data-gesture='pinch'] .mascot-static-face, .mascot-fallback[data-gesture='pat'] .mascot-static-face { transition-duration: var(--mascot-follow-time); transition-timing-function: linear; }
 .mascot-static-eye { position: absolute; top: 37%; width: 6.6%; height: 9%; border-radius: 48%; transform-origin: 50% 50%; transition: transform var(--mascot-return-time) var(--mascot-elastic); }
-.mascot-static-eye.left { left: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-x, 0px)), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-y, 0px))) scaleY(var(--fb-eye-open)); }
-.mascot-static-eye.right { right: 33%; transform: translate(calc(var(--fb-gaze-x, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-x, 0px)), calc(var(--fb-gaze-y, 0) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-y, 0px))) scaleY(var(--fb-eye-open)); }
+.mascot-static-eye.left { left: 33%; transform: translate(calc(var(--fb-gaze-x, var(--fb-pointer-gaze-x, 0)) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-x, 0px)), calc(var(--fb-gaze-y, var(--fb-pointer-gaze-y, 0)) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-left-y, 0px))) scaleY(var(--fb-eye-open)); }
+.mascot-static-eye.right { right: 33%; transform: translate(calc(var(--fb-gaze-x, var(--fb-pointer-gaze-x, 0)) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-x, 0px)), calc(var(--fb-gaze-y, var(--fb-pointer-gaze-y, 0)) * var(--fb-gaze-travel, 3.6px) + var(--fb-eye-right-y, 0px))) scaleY(var(--fb-eye-open)); }
 .mascot-fallback[data-gesture='pinch'] .mascot-static-eye { transition: transform var(--mascot-follow-time) linear; }
 .mascot-static-lid { position: absolute; inset: 0; display: block; border-radius: inherit; }
-.mascot-static-pupil { position: absolute; inset: 0; display: block; border-radius: inherit; background: var(--mascot-face-ink); transform: translate(calc(var(--fb-gaze-x, 0) * 9%), calc(var(--fb-gaze-y, 0) * 8%)); }
-.mascot-static-pupil::after { content: ''; position: absolute; top: 17%; left: 17%; width: 33%; height: 28%; border-radius: 50%; background: #fffdf5; transform: translate(calc(var(--fb-gaze-x, 0) * -25%), calc(var(--fb-gaze-y, 0) * -20%)); }
-.mascot-static-mouth { position: absolute; left: 43%; top: 53%; width: 14%; height: 10%; border: 2px solid var(--mascot-face-ink); border-top: 0; border-radius: 0 0 50% 50%; transform: translateX(calc(var(--fb-gaze-x, 0) * 1.5px)); transition: width 180ms ease, height 180ms ease, border-radius 180ms ease; }
+.mascot-static-pupil { position: absolute; inset: 0; display: block; border-radius: inherit; background: var(--mascot-face-ink); transform: translate(calc(var(--fb-gaze-x, var(--fb-pointer-gaze-x, 0)) * 9%), calc(var(--fb-gaze-y, var(--fb-pointer-gaze-y, 0)) * 8%)); }
+.mascot-static-pupil::after { content: ''; position: absolute; top: 17%; left: 17%; width: 33%; height: 28%; border-radius: 50%; background: #fffdf5; transform: translate(calc(var(--fb-gaze-x, var(--fb-pointer-gaze-x, 0)) * -25%), calc(var(--fb-gaze-y, var(--fb-pointer-gaze-y, 0)) * -20%)); }
+.mascot-static-mouth { position: absolute; left: 43%; top: 53%; width: 14%; height: 10%; border: 2px solid var(--mascot-face-ink); border-top: 0; border-radius: 0 0 50% 50%; transform: translateX(calc(var(--fb-gaze-x, var(--fb-pointer-gaze-x, 0)) * 1.5px)); transition: width 180ms ease, height 180ms ease, border-radius 180ms ease; }
 .mascot-static-dent { position: absolute; z-index: 4; left: var(--fb-touch-x, 50%); top: var(--fb-touch-y, 50%); width: 18%; height: 16%; border-radius: 50%; box-shadow: inset 3px 4px 7px #64765f16, 2px 2px 5px #fff8; opacity: 0; transform: translate(-50%, -50%); transition: opacity 120ms ease; }
 .mascot-fallback[data-gesture='poke'] .mascot-static-dent { opacity: .8; }
 .mascot-fallback-spark { position: absolute; z-index: 4; right: -11%; top: 18%; color: #c8ac73; font-size: 28px; opacity: 0; }
@@ -174,7 +183,7 @@
 @keyframes mascot-idle-hand { 0%, 58%, 73%, 100% { transform: rotate(0deg); } 62% { transform: rotate(-9deg) translateY(-3%); } 66% { transform: rotate(-5deg) translateY(-2%); } 69% { transform: rotate(-10deg) translateY(-3%); } }
 
 /* 喂食、逗球与月亮共用一份SVG道具，位置由输入决定，透明目标读取此元素的真实包围框。 */
-.mascot-care-prop { position: absolute; z-index: 3; display: block; left: var(--pet-x, var(--pet-home-x)); top: var(--pet-y, var(--pet-home-y)); width: var(--pet-prop-size); height: var(--pet-prop-size); transform: translate(-50%, -50%) rotate(var(--pet-spin, 0rad)) scale(var(--pet-scale, 1)); filter: drop-shadow(0 5px 5px #344d3917); will-change: left, top, transform; }
+.mascot-care-prop { position: absolute; z-index: 3; display: block; left: var(--pet-x, var(--pet-home-x)); top: var(--pet-y, var(--pet-home-y)); width: var(--pet-prop-size); height: var(--pet-prop-size); transform: translate(-50%, -50%) scale(calc(var(--pet-scale, 1) * var(--pet-squash-x, 1)), calc(var(--pet-scale, 1) * var(--pet-squash-y, 1))) rotate(var(--pet-spin, 0rad)); filter: drop-shadow(0 5px 5px #344d3917); will-change: left, top, transform; }
 .mascot-care-prop svg { display: block; width: 100%; height: 100%; }
 /* 只有道具本身逐帧移动，接物由真实左右手决定，飞行/归还途中都可以重新抓住。 */
 .mascot-fallback:is([data-pet-phase='flight'], [data-pet-phase='return'], [data-pet-phase='held']) .mascot-care-prop { transition: none; }
@@ -211,6 +220,13 @@
 .mascot-fallback[data-pet-response='wake'] .mascot-fallback-suspension { animation: mascot-pet-wake var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { animation: mascot-pet-stretch-left var(--pet-response-time) ease-in-out both; }
 .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { animation: mascot-pet-stretch-right var(--pet-response-time) ease-in-out both; }
+/* 球独立于吃饭：小手托住转动、轻点头拍地、双手交替迎接，所有位移只占掌宽一小部分。 */
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-hand-rig { z-index: 4; }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand { animation: none; transition: none; }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.left { transform: translate(calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-x)), calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-left, 0) * var(--mascot-ball-cup-angle) * -1)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-activity='tease'] .mascot-static-hand.right { transform: translate(calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-x) * -1), calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-y))) rotate(calc(var(--pet-ball-right, 0) * var(--mascot-ball-cup-angle))); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='dribble'] .mascot-fallback-suspension { animation: none; transform: translateY(calc(var(--pet-ball-dribble, 0) * 1.2%)) rotate(calc(var(--pet-ball-dribble, 0) * 1.5deg)); }
+.mascot-fallback[data-pet-delivery='ball'][data-pet-ball-pattern='spin'] .mascot-static-face { transform: translateY(calc(var(--pet-ball-spin, 0) * -0.8%)); }
 /* 月亮摇得太快时短暂抬脸好奇，不增加安抚次数；减少动态时也保留同一静态表情。 */
 .mascot-fallback[data-pet-alert='true'] .mascot-static-face { animation: none; transform: translateY(-1%) rotate(5deg); }
 .mascot-fallback[data-pet-alert='true'] .mascot-static-eye { --fb-eye-open: 1; }
@@ -252,22 +268,20 @@
 
 /* 系统和组件内的减少动态偏好均生效，直接拖动仍保留必要位置反馈。 */
 .mascot-fallback.is-reduced *, .mascot-fallback.is-reduced *::after { animation: none !important; transition: none !important; }
+.mascot-fallback.is-reduced[data-pet-delivery='ball'] .mascot-fallback-suspension, .mascot-fallback.is-reduced[data-pet-delivery='ball'] .mascot-static-face { transform: none; }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
 .mascot-fallback.is-reduced[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
 .mascot-fallback.is-reduced[data-pet-response='eat'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
-.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
 .mascot-fallback.is-reduced[data-pet-response='eat'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(210%, 28%) rotate(-40deg); }
-.mascot-fallback.is-reduced:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='left'] .mascot-static-hand.left { transform: translate(45%, -20%) rotate(40deg); }
 .mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
 .mascot-fallback.is-reduced[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
 @media (prefers-reduced-motion: reduce) {
   .mood-sculpture-canvas canvas, .mascot-reply, .mascot-fallback *, .mascot-fallback *::after { animation: none !important; transition: none !important; }
+  .mascot-fallback[data-pet-delivery='ball'] .mascot-fallback-suspension, .mascot-fallback[data-pet-delivery='ball'] .mascot-static-face { transform: none; }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.left { transform: rotate(-10deg) translateY(20%); }
   .mascot-fallback[data-gesture='drag'] .mascot-static-foot.right { transform: rotate(10deg) translateY(20%); }
   .mascot-fallback[data-pet-response='eat'][data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-210%, 28%) rotate(40deg); }
-  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='right'] .mascot-static-hand.right { transform: translate(-45%, -20%) rotate(-40deg); }
   .mascot-fallback[data-pet-response='eat'][data-pet-hand='left'] .mascot-static-hand.left { transform: translate(210%, 28%) rotate(-40deg); }
-  .mascot-fallback:is([data-pet-response='play'], [data-pet-response='excited'])[data-pet-hand='left'] .mascot-static-hand.left { transform: translate(45%, -20%) rotate(40deg); }
   .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.left { transform: rotate(45deg) translateY(-12%); }
   .mascot-fallback[data-pet-response='wake'] .mascot-static-hand.right { transform: rotate(-45deg) translateY(-12%); }
   .mascot-reply { transform: none; }
