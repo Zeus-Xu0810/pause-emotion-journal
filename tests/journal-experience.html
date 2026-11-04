@@ -113,14 +113,15 @@
         target.dispatchEvent(new Event('input', { bubbles: true })); target.dispatchEvent(new Event('change', { bubbles: true })); await sleep(TEST.settleMs);
       }
       async function resetHarness() { generation += 1; root.render(h(MemoryRouter, { key: generation }, h(Harness, { id: generation }))); await until(() => composer() && proof().generation === generation && !mount.querySelector('.journal-notebook'), '新夹具就绪'); }
-      async function openNotebook() { if (!composer().querySelector('.journal-notebook')) await click('贴个心情', composer()); }
+      // 写日记入口直达正文，贴纸流程再主动切到“贴心情”。
+      async function openNotebook() { if (!composer().querySelector('.journal-notebook')) await click('写日记', composer()); }
       async function writeNote(value = TEST.note) { await openNotebook(); await click('小纸条', composer()); await input('textarea[aria-label="写下此刻"]', value, composer()); }
       async function save() { await click('记下此刻', composer()); await until(() => !composer().querySelector('.home-save').disabled || composer().querySelector('.notebook-receipt'), '保存回调完成'); }
 
       /** 九个关键流程各自重建，避免一次保存后的短暂成功态污染下一项。 */
       const tests = [
         ['贴纸可以选择、取消，并跨标签保留', async () => {
-          await openNotebook(); await click('疲惫', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'true', '感受未选中');
+          await openNotebook(); assert(composer().querySelector('textarea'), '写日记入口没有直达正文'); await click('贴心情', composer()); await click('疲惫', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'true', '感受未选中');
           await click('疲惫', composer()); assert(button('疲惫', composer()).getAttribute('aria-pressed') === 'false', '感受未取消');
           await click('期待', composer()); await click('今天的事', composer()); await click('工作', composer()); await click('贴心情', composer());
           assert(button('期待', composer()).getAttribute('aria-pressed') === 'true', '切换后感受丢失'); await click('今天的事', composer()); assert(button('工作', composer()).getAttribute('aria-pressed') === 'true', '切换后情境丢失');
@@ -130,7 +131,7 @@
           assert(composer().querySelector('.notebook-question').textContent.includes('抱抱'), '提示未切换');
         }],
         ['收起再展开仍保留文字和贴纸', async () => {
-          await openNotebook(); await click('满足', composer()); await writeNote(); await click('收起', composer()); await click('继续补充', composer());
+          await openNotebook(); await click('贴心情', composer()); await click('满足', composer()); await writeNote(); await click('收起日记', composer()); await click('继续写日记', composer());
           await click('小纸条', composer()); assert(composer().querySelector('textarea').value === TEST.note, '收起后正文丢失'); await click('贴心情', composer()); assert(button('满足', composer()).getAttribute('aria-pressed') === 'true', '收起后贴纸丢失');
         }],
         ['保存返回false不显示成功，草稿继续保留', async () => {

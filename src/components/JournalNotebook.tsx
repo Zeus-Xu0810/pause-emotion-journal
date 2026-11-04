@@ -14,8 +14,9 @@ const TABS = [{ id: 'feelings', label: '贴心情' }, { id: 'note', label: '小�
 type NotebookTab = typeof TABS[number]['id'];
 
 /** 贴纸、写字、情境共用同一份受控草稿；切换提示和摸摸团子均不会改动正文。 */
-export default function JournalNotebook({ form, setForm, busy, editing }: { form: ComposerState; setForm: (next: ComposerState) => void; busy: boolean; editing: MoodEntry | null }) {
-  const [tab, setTab] = useState<NotebookTab>(editing ? 'note' : 'feelings');
+export default function JournalNotebook({ form, setForm, busy, editing, initialTab = 'feelings' }: { form: ComposerState; setForm: (next: ComposerState) => void; busy: boolean; editing: MoodEntry | null; initialTab?: NotebookTab }) {
+  // 首页写日记直达文字页，贴纸仍由用户自行选择，不改变已有草稿内容。
+  const [tab, setTab] = useState<NotebookTab>(editing ? 'note' : initialTab);
   const [prompt, setPrompt] = useState(0);
   const [showTime, setShowTime] = useState(false);
   const [companion, setCompanion] = useState(-1);

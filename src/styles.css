@@ -37,6 +37,8 @@
   --home-stage-width: 980px;
   --home-stage-gap: 18px;
   --home-action-gap: 22px;
+  --home-diary-background: #eaf2ec;
+  --home-diary-border: #b9cebf;
   --home-footnote-gap: 14px;
   --mascot-bubble-space: 64px;
   --radius: 8px;
@@ -127,9 +129,13 @@ h1, h2, h3, strong { font-weight: 400; }
 .home-actions .home-save:hover:not(:disabled) { background: #355b4b; border-color: #355b4b; box-shadow: 0 4px 15px #233d3510; }
 .home-actions .home-save svg { width: 19px; height: 19px; }
 .home-actions .home-save.is-saved:disabled { opacity: 1; background: var(--mint); color: var(--green); border-color: var(--mint); }
-.home-actions .home-note-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 104px; min-height: 48px; margin: 0; padding: 10px 11px; border: 0; background: transparent; color: var(--ink-soft); font-size: 17px; }
-.home-note-toggle:hover, .home-note-toggle[aria-expanded='true'] { color: var(--ink); }
-.home-note-toggle svg { width: 17px; height: 17px; }
+/* 写日记与保存按钮同高，纸笔图标和简短提示让入口无需猜测。 */
+.home-actions .home-note-toggle { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-width: 180px; min-height: var(--home-control-height); margin: 0; padding: 9px 20px; border: 1px solid var(--home-diary-border); border-radius: 36px; background: var(--home-diary-background); color: var(--ink); font-size: 20px; }
+.home-note-toggle:hover, .home-note-toggle[aria-expanded='true'] { background: #dfebe2; border-color: #9fbaa8; }
+.home-note-toggle svg { width: 20px; height: 20px; }
+.home-diary-copy { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.35; white-space: nowrap; }
+.home-diary-copy small { color: #617b6b; font-size: 13px; }
+.home-diary-count { position: absolute; top: -5px; right: -3px; display: grid; place-items: center; min-width: 20px; height: 20px; padding-inline: 4px; border: 1px solid #b7cdbb; border-radius: 50%; background: var(--paper); font-size: 12px; }
 .home-footnote { flex: 0 0 auto; max-width: 440px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .home-footnote a { color: var(--ink-soft); }
 .home-care-link { display: flex; align-items: center; justify-content: center; gap: 9px; width: max-content; min-height: 46px; margin: 10px auto 0; color: var(--ink-soft); font-size: 16px; text-decoration: none; }
@@ -487,11 +493,13 @@ details.settings-panel { padding: 0; border-top: 1px solid var(--line); }
   .home-moods { width: 100%; gap: 5px; }
   .home-mood { min-width: 0; flex: 1 1 0; padding: 10px 5px; }
   .home-mood .mood-dot { display: none; }
-  .home-actions { gap: 18px; }
+  .home-actions { gap: 12px; }
   .home-actions .home-save { min-width: 176px; padding-inline: 24px; font-size: 18px; }
   .home-actions .home-save svg { width: 17px; height: 17px; }
-  .home-actions .home-note-toggle { min-width: 92px; min-height: 48px; font-size: 16px; padding-inline: 5px; }
-  .home-actions .home-note-toggle svg { width: 16px; height: 16px; }
+  .home-actions .home-note-toggle { flex: 1 1 auto; min-width: 0; max-width: 172px; min-height: var(--home-control-height); font-size: 18px; padding: 7px 10px; gap: 7px; }
+  .home-actions .home-note-toggle svg { width: 18px; height: 18px; }
+  .home-diary-copy small { font-size: 12px; }
+  .home-actions .home-save { flex-shrink: 0; }
   .home-footnote { max-width: 300px; font-size: 12px; }
   .home-care-link { min-height: 42px; margin-top: 10px; font-size: 14px; }
   .home-secondary { margin-top: 8px; }
@@ -519,6 +527,8 @@ details.settings-panel { padding: 0; border-top: 1px solid var(--line); }
   .home-mood { padding-inline: 3px; }
   .home-actions { gap: 12px; }
   .home-actions .home-save { min-width: 166px; }
+  .home-actions .home-note-toggle { padding-inline: 6px; font-size: 16px; }
+  .home-actions .home-note-toggle > svg { display: none; }
   .home-header-date { font-size: 11px; }
 }
 
